@@ -77,11 +77,12 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
         # Sorts the tensor elements in ascending order.
         operation=lambda x: torch.sort(x, stable=True).values
     ),
-    Transformation(
-        name="SORT_DESCENDING",
-        # Sorts the tensor elements in descending order.
-        operation=lambda x: torch.sort(x, stable=True, descending=True).values
-    ),
+    # SORT_DESCENDING removed to force compositional discovery
+    # Transformation(
+    #     name="SORT_DESCENDING",
+    #     # Sorts the tensor elements in descending order.
+    #     operation=lambda x: torch.sort(x, stable=True, descending=True).values
+    # ),
     
     # --- Element-wise Arithmetic Operations ---
     Transformation(

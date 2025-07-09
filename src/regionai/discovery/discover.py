@@ -5,6 +5,7 @@ from patterns of failure.
 from typing import List, Optional
 import torch
 import uuid
+from collections import deque
 
 from regionai.data.problem import Problem
 from regionai.geometry.region import RegionND
@@ -26,33 +27,43 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
         print("    Discovery requires a consistent set of 'transformation' problems.")
         return None
     
-    # --- Begin Algorithm Search ---
-    print(f"    Searching for a primitive operation that solves all {len(failed_problems)} failures...")
+    # --- Begin Compositional Algorithm Search ---
+    print(f"    Searching for a sequence of operations that solves all {len(failed_problems)} failures...")
     
-    # 1. Brute-force search through all known primitive operations.
-    # For now, we only search for a single-step algorithm.
-    for primitive in PRIMITIVE_OPERATIONS:
+    # 1. Initialize the search queue. It will hold TransformationSequence objects.
+    # Start with all sequences of length 1.
+    search_queue = deque([TransformationSequence([p]) for p in PRIMITIVE_OPERATIONS])
+    
+    # Set a maximum search depth to prevent infinite loops.
+    MAX_SEARCH_DEPTH = 2  # Start with a small depth
+    
+    while search_queue:
+        current_sequence = search_queue.popleft()
+        
+        # Stop searching if sequences get too long.
+        if len(current_sequence) > MAX_SEARCH_DEPTH:
+            print("    --- Search failed. Reached maximum search depth. ---")
+            return None
+        
+        # 2. Test the current sequence against all failed problems.
         is_consistent_solution = True
-        # 2. Test this primitive against EVERY failed problem.
         for problem in failed_problems:
-            # Apply the operation
-            result = primitive.operation(problem.input_data)
-            
-            # Check if the result matches the expected output
+            result = current_sequence.apply(problem.input_data)
             if not torch.equal(result, problem.output_data):
                 is_consistent_solution = False
-                break  # This primitive is not the solution, try the next one.
+                break
         
-        # 3. If the primitive worked for ALL problems, we have found our algorithm!
+        # 3. If the sequence worked for ALL problems, we have found our algorithm!
         if is_consistent_solution:
-            print(f"    >>> Generalization Found! The '{primitive.name}' operation solves all failures.")
+            print(f"    >>> Compositional Solution Found! Sequence: {current_sequence} solves all failures.")
             
-            # 4. Create a TransformationSequence representing this algorithm.
-            successful_sequence = TransformationSequence([primitive])
+            # Create appropriate concept name based on composition
+            if len(current_sequence) == 1:
+                concept_name = f"CONCEPT_{current_sequence.transformations[0].name}_{uuid.uuid4().hex[:4].upper()}"
+            else:
+                concept_name = f"CONCEPT_COMPOSED_{uuid.uuid4().hex[:4].upper()}"
             
-            # 5. Create the new concept region with this algorithm.
-            new_concept_name = f"CONCEPT_{primitive.name}_{uuid.uuid4().hex[:4].upper()}"
-            print(f"    Creating new concept '{new_concept_name}'...")
+            print(f"    Creating new concept '{concept_name}'...")
             
             dims = failed_problems[0].input_data.dim()
             min_corner = torch.rand(dims) * 0.1
@@ -62,12 +73,18 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
                 min_corner=min_corner,
                 max_corner=max_corner,
                 region_type='transformation',
-                # Store the entire sequence object, not just the function.
-                transformation_function=successful_sequence
+                transformation_function=current_sequence
             )
-            new_concept.name = new_concept_name  # Add name as an attribute
+            new_concept.name = concept_name
             return new_concept
+        
+        # 4. If this sequence didn't work, expand it by one step and add the new
+        # longer sequences to the back of the queue.
+        if len(current_sequence) < MAX_SEARCH_DEPTH:
+            for primitive in PRIMITIVE_OPERATIONS:
+                new_sequence = TransformationSequence(current_sequence.transformations + [primitive])
+                search_queue.append(new_sequence)
     
-    # If the loop finishes without finding a working primitive
-    print("    --- Search failed. No single primitive operation could solve all problems. ---")
+    # If the while loop finishes, no solution was found.
+    print("    --- Search failed. No solution found within the search depth. ---")
     return None

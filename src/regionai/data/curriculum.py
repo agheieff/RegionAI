@@ -68,3 +68,23 @@ class CurriculumGenerator:
                 description="Sum with negative numbers."
             ),
         ]
+    
+    def generate_sort_desc_curriculum(self) -> List[Problem]:
+        """Generates a curriculum for learning SORT_DESCENDING from composition."""
+        print("Generating curriculum for 'SORT_DESCENDING' composition...")
+        return [
+            Problem(
+                name="sort_desc_1",
+                problem_type="transformation",
+                input_data=torch.tensor([3, 1, 2], dtype=torch.float32),
+                output_data=torch.tensor([3, 2, 1], dtype=torch.float32),
+                description="[3, 1, 2] -> [3, 2, 1]"
+            ),
+            Problem(
+                name="sort_desc_2",
+                problem_type="transformation",
+                input_data=torch.tensor([10, 50, 20], dtype=torch.float32),
+                output_data=torch.tensor([50, 20, 10], dtype=torch.float32),
+                description="[10, 50, 20] -> [50, 20, 10]"
+            ),
+        ]
