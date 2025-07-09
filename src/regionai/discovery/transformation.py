@@ -5,8 +5,9 @@ as sequences of primitive operations.
 """
 
 from dataclasses import dataclass
-from typing import List, Callable, Optional, Dict
+from typing import List, Callable, Optional, Dict, Any, Union
 import torch
+import ast
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,73 @@ class Transformation:
     def __repr__(self) -> str:
         return self.name
 
+
+@dataclass(frozen=True)
+class ConditionalTransformation:
+    """
+    A special transformation that executes different sequences based on a condition.
+    This enables if/else logic in discovered algorithms.
+    """
+    name: str
+    condition: AppliedTransformation  # A boolean-producing transformation
+    if_true_sequence: 'TransformationSequence'
+    if_false_sequence: 'TransformationSequence'
+    input_type: str = "dict_list"
+    output_type: str = "dict_list"
+    
+    def apply(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Apply conditional logic to each item in the data."""
+        results = []
+        for item in data:
+            # Evaluate condition for this item
+            condition_result = self.condition.transformation.operation(item, self.condition.arguments)
+            
+            if condition_result:
+                # Apply true branch - need to handle single item
+                result = self.if_true_sequence.apply([item])
+                results.extend(result if isinstance(result, list) else [result])
+            else:
+                # Apply false branch
+                result = self.if_false_sequence.apply([item])
+                results.extend(result if isinstance(result, list) else [result])
+        
+        return results
+    
+    def __repr__(self) -> str:
+        return f"IF({self.condition}) THEN {self.if_true_sequence} ELSE {self.if_false_sequence}"
+
+
+@dataclass(frozen=True)
+class ForEachTransformation:
+    """
+    A higher-order transformation that applies a sequence to each item in a list.
+    This enables iteration over collections with complex per-item processing.
+    """
+    name: str
+    loop_body: 'TransformationSequence'  # Sequence to apply to each item
+    input_type: str = "dict_list"
+    output_type: str = "dict_list"
+    
+    def apply(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Apply the loop body to each item in the data."""
+        results = []
+        for item in data:
+            # The loop body operates on a single item
+            # We need to ensure it returns a single modified item
+            transformed = self.loop_body.apply(item)
+            if isinstance(transformed, dict):
+                results.append(transformed)
+            elif isinstance(transformed, list) and len(transformed) == 1:
+                results.append(transformed[0])
+            else:
+                # Handle unexpected output
+                results.append(item)  # Fallback to original
+        
+        return results
+    
+    def __repr__(self) -> str:
+        return f"FOR_EACH(item) DO {self.loop_body}"
+
 class TransformationSequence:
     """
     Represents a sequence of AppliedTransformation objects that form a complete algorithm.
@@ -55,7 +123,7 @@ class TransformationSequence:
         # Keep backward compatibility
         self.transformations = [at.transformation for at in applied_transformations]
     
-    def apply(self, x: torch.Tensor) -> torch.Tensor:
+    def apply(self, x: Union[torch.Tensor, List[Dict[str, Any]], Dict[str, Any], int, float]) -> Union[torch.Tensor, List[Dict[str, Any]], Dict[str, Any], int, float]:
         """
         Applies the full sequence of transformations to an input tensor.
         
@@ -166,7 +234,7 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
     Transformation(
         name="SUM",
         # Computes the sum of all elements and returns it as a single-element tensor.
-        operation=lambda x: torch.sum(x).unsqueeze(0),
+        operation=lambda x: torch.sum(x).unsqueeze(0) if x.numel() > 0 else torch.tensor([0.0], dtype=x.dtype),
         input_type="vector",
         output_type="scalar"
     ),
@@ -195,6 +263,94 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
         input_type="vector",
         output_type="vector",
         num_args=1  # This primitive requires one argument
+    ),
+    
+    # --- Structured Data Operations ---
+    Transformation(
+        name="MAP_GET",
+        # Extracts values for a given key from a list of dictionaries
+        operation=lambda data, args: torch.tensor([float(item[args[0]]) for item in data if args[0] in item], dtype=torch.float32),
+        input_type="dict_list",
+        output_type="vector",
+        num_args=1  # Requires the key to extract
+    ),
+    Transformation(
+        name="FILTER_BY_VALUE",
+        # Filters a list of dictionaries based on a key-value match
+        operation=lambda data, args: [item for item in data if args[0] in item and item[args[0]] == args[1]],
+        input_type="dict_list",
+        output_type="dict_list",
+        num_args=2  # Requires key and value to filter by
+    ),
+    
+    # --- Boolean Primitives ---
+    Transformation(
+        name="HAS_KEY",
+        # Checks if a dictionary contains a specific key
+        operation=lambda item, args: args[0] in item if isinstance(item, dict) else False,
+        input_type="dict",
+        output_type="boolean",
+        num_args=1  # Requires the key to check
+    ),
+    Transformation(
+        name="VALUE_EQUALS",
+        # Checks if a dictionary's value for a key equals a given value
+        operation=lambda item, args: args[0] in item and item[args[0]] == args[1] if isinstance(item, dict) else False,
+        input_type="dict",
+        output_type="boolean",
+        num_args=2  # Requires key and value to check
+    ),
+    
+    # --- Arithmetic Operations ---
+    Transformation(
+        name="MULTIPLY",
+        # Multiplies a tensor by a scalar
+        operation=lambda x, args: x * args[0],
+        input_type="vector",
+        output_type="vector",
+        num_args=1  # Requires the multiplier
+    ),
+    Transformation(
+        name="UPDATE_FIELD",
+        # Updates a field in each dictionary in a list
+        operation=lambda data, args: [{**item, args[0]: args[1] if not callable(args[1]) else args[1](item.get(args[0], 0))} for item in data],
+        input_type="dict_list",
+        output_type="dict_list",
+        num_args=2  # Requires field name and new value or update function
+    ),
+    
+    # --- Single Item Operations ---
+    Transformation(
+        name="GET_FIELD",
+        # Extracts a value from a single dictionary
+        operation=lambda item, args: item.get(args[0]) if isinstance(item, dict) else None,
+        input_type="dict",
+        output_type="scalar",
+        num_args=1  # Requires the field name
+    ),
+    Transformation(
+        name="SET_FIELD",
+        # Sets a value in a dictionary and returns the modified dictionary
+        operation=lambda item, args: {**item, args[0]: args[1]} if isinstance(item, dict) else item,
+        input_type="dict",
+        output_type="dict",
+        num_args=2  # Requires field name and value
+    ),
+    Transformation(
+        name="MULTIPLY_SCALAR",
+        # Multiplies a scalar by another scalar
+        operation=lambda x, args: x * args[0] if isinstance(x, (int, float)) else x,
+        input_type="scalar",
+        output_type="scalar",
+        num_args=1  # Requires the multiplier
+    ),
+    Transformation(
+        name="ADD_SCALAR",
+        # Adds a scalar to another scalar
+        operation=lambda x, args: x + args[0] if isinstance(x, (int, float)) else x,
+        input_type="scalar",
+        output_type="scalar",
+        num_args=1  # Requires the value to add
     ),
 ]
 

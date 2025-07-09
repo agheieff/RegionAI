@@ -1,5 +1,10 @@
 from dataclasses import dataclass
 import torch
+import ast
+from typing import Union, List, Dict, Any
+
+# A more flexible type for our problem inputs and outputs
+ProblemDataType = Union[torch.Tensor, List[Dict[str, Any]], int, float, ast.AST]
 
 @dataclass
 class Problem:
@@ -8,6 +13,6 @@ class Problem:
     """
     name: str
     problem_type: str
-    input_data: torch.Tensor
-    output_data: torch.Tensor
+    input_data: ProblemDataType
+    output_data: ProblemDataType
     description: str
