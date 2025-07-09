@@ -26,8 +26,8 @@ def main():
     curriculum_generator = CurriculumGenerator()
     
     # 2. Get the curriculum for a problem the system cannot solve yet
-    problem_curriculum = curriculum_generator.generate_sort_desc_curriculum()
-    print(f"Loaded a curriculum of {len(problem_curriculum)} 'sort descending' problems.")
+    problem_curriculum = curriculum_generator.generate_sum_of_large_elements_curriculum()
+    print(f"Loaded a curriculum of {len(problem_curriculum)} 'sum of large elements' problems.")
     
     # 3. Create a list to store problems the engine fails to solve
     unsolved_problems = []

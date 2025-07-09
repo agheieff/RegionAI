@@ -119,4 +119,11 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
         # Counts the number of elements and returns it as a single-element tensor.
         operation=lambda x: torch.tensor([x.numel()], dtype=x.dtype, device=x.device)
     ),
+    
+    # --- Filtering Operations ---
+    Transformation(
+        name="FILTER_GT_5",
+        # Selects all elements in the tensor greater than 5.
+        operation=lambda x: x[x > 5] if (x > 5).any() else torch.tensor([], dtype=x.dtype, device=x.device)
+    ),
 ]

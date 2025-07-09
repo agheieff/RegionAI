@@ -88,3 +88,33 @@ class CurriculumGenerator:
                 description="[10, 50, 20] -> [50, 20, 10]"
             ),
         ]
+    
+    def generate_sum_of_large_elements_curriculum(self) -> List[Problem]:
+        """Generates a curriculum for learning a FILTER -> SUM composition."""
+        print("Generating curriculum for 'FILTER_GT_5 -> SUM' composition...")
+        return [
+            Problem(
+                name="sum_large_1",
+                problem_type="transformation",
+                input_data=torch.tensor([1, 10, 2, 8], dtype=torch.float32),
+                # Should filter to [10, 8], then sum to 18
+                output_data=torch.tensor([18], dtype=torch.float32),
+                description="Sum of elements > 5 in [1, 10, 2, 8]"
+            ),
+            Problem(
+                name="sum_large_2",
+                problem_type="transformation",
+                input_data=torch.tensor([6, 3, 20], dtype=torch.float32),
+                # Should filter to [6, 20], then sum to 26
+                output_data=torch.tensor([26], dtype=torch.float32),
+                description="Sum of elements > 5 in [6, 3, 20]"
+            ),
+            Problem(
+                name="sum_large_3_no_match",
+                problem_type="transformation",
+                input_data=torch.tensor([1, 2, 3, 4], dtype=torch.float32),
+                # Should filter to [], then sum to 0
+                output_data=torch.tensor([0], dtype=torch.float32),
+                description="Sum of elements > 5 where none exist"
+            ),
+        ]

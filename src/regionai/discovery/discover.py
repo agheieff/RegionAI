@@ -35,7 +35,7 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
     search_queue = deque([TransformationSequence([p]) for p in PRIMITIVE_OPERATIONS])
     
     # Set a maximum search depth to prevent infinite loops.
-    MAX_SEARCH_DEPTH = 2  # Start with a small depth
+    MAX_SEARCH_DEPTH = 3  # Increased to allow deeper compositional discovery
     
     while search_queue:
         current_sequence = search_queue.popleft()
