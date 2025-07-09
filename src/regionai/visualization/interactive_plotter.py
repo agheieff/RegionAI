@@ -42,14 +42,9 @@ class InteractivePlotter:
         """Create and display the interactive plot."""
         # Create figure and axis
         self.fig, self.ax = plt.subplots(figsize=(10, 10))
-        self.ax.set_aspect('equal')
-        self.ax.grid(True, alpha=0.3)
-        self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Y')
-        self.ax.set_title('Interactive Concept Space (Left-click: select, Right-click: pathfind, C: clear)')
         
-        # Draw all regions
-        self._draw_regions()
+        # Initial draw
+        self._redraw_plot()
         
         # Connect mouse and keyboard events
         self.fig.canvas.mpl_connect('button_press_event', self._handle_click)
@@ -58,9 +53,9 @@ class InteractivePlotter:
         # Show the plot
         plt.show()
     
-    def _draw_regions(self):
-        """Draw all regions in the concept space."""
-        # Clear existing patches
+    def _redraw_plot(self):
+        """Single source of truth for all drawing operations."""
+        # Clear the current axes completely
         self.ax.clear()
         self.patches.clear()
         
@@ -78,26 +73,42 @@ class InteractivePlotter:
             reverse=True
         )
         
-        # Draw each region
+        # Draw each region according to current state
         for name, region in sorted_regions:
             # Get properties
             min_corner = region.min_corner.cpu().numpy()
             width = region.size().cpu().numpy()[0]
             height = region.size().cpu().numpy()[1]
             
-            # Determine color and alpha based on selection
-            if name == self.selected_region:
-                color = self.selected_color
-                alpha = self.selected_alpha
-                linewidth = 3
+            # State-based styling with order of precedence
+            if self.pathfinding_path and name in self.pathfinding_path:
+                # Path Found: Vibrant success style
+                facecolor = 'orange'
+                edgecolor = 'black'
+                alpha = 0.7
+                linewidth = 4
+                linestyle = '-'
             elif name == self.pathfinding_start:
-                color = 'green'
+                # Pathfinding Start: Waiting for input style
+                facecolor = 'purple'
+                edgecolor = 'purple'
+                alpha = 0.6
+                linewidth = 3
+                linestyle = '--'
+            elif name == self.selected_region:
+                # Simple Selection: Selected style
+                facecolor = self.selected_color
+                edgecolor = self.selected_color
                 alpha = self.selected_alpha
                 linewidth = 3
+                linestyle = '-'
             else:
-                color = self.default_color
+                # Default: Neutral style
+                facecolor = self.default_color
+                edgecolor = self.default_color
                 alpha = self.alpha
                 linewidth = 1
+                linestyle = '-'
             
             # Create rectangle patch
             rect = patches.Rectangle(
@@ -105,9 +116,10 @@ class InteractivePlotter:
                 width,
                 height,
                 linewidth=linewidth,
-                edgecolor=color,
-                facecolor=color,
-                alpha=alpha
+                edgecolor=edgecolor,
+                facecolor=facecolor,
+                alpha=alpha,
+                linestyle=linestyle
             )
             
             # Add to axes
@@ -116,18 +128,19 @@ class InteractivePlotter:
             
             # Add label at center
             center = region.center().cpu().numpy()
+            # Make text more prominent for path regions
+            fontweight = 'bold' if (self.pathfinding_path and name in self.pathfinding_path) else 'normal'
+            fontsize = 12 if (self.pathfinding_path and name in self.pathfinding_path) else 10
+            
             self.ax.text(
                 center[0], center[1], name,
                 ha='center', va='center',
-                fontsize=10, weight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7)
+                fontsize=fontsize, weight=fontweight,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8)
             )
         
         # Auto-scale to show all regions
         self.ax.autoscale_view()
-        
-        # Force redraw
-        self.fig.canvas.draw_idle()
     
     def _handle_click(self, event):
         """General click handler that delegates to specific handlers.
@@ -172,6 +185,10 @@ class InteractivePlotter:
         # Update selection
         if clicked_region != self.selected_region:
             self.selected_region = clicked_region
+            # Clear pathfinding when selecting
+            self.pathfinding_start = None
+            self.pathfinding_path = []
+            
             print(f"Selected: {clicked_region}")
             
             # Print some info about the selected region
@@ -182,8 +199,9 @@ class InteractivePlotter:
                 print(f"  Min corner: {region.min_corner.cpu().numpy()}")
                 print(f"  Max corner: {region.max_corner.cpu().numpy()}")
             
-            # Redraw with new selection
-            self._draw_regions()
+            # Redraw with new state
+            self._redraw_plot()
+            self.fig.canvas.draw_idle()
     
     def _on_right_click(self, event):
         """Handle right mouse click events for pathfinding.
@@ -218,8 +236,13 @@ class InteractivePlotter:
         if self.pathfinding_start is None:
             # Set start point
             self.pathfinding_start = clicked_region
+            self.pathfinding_path = []
+            self.selected_region = None  # Clear selection when pathfinding
             print(f"Pathfinding start set to: {clicked_region}")
-            self._draw_regions()
+            
+            # Redraw with new state
+            self._redraw_plot()
+            self.fig.canvas.draw_idle()
         else:
             # This is the end point - find path
             start = self.pathfinding_start
@@ -229,12 +252,18 @@ class InteractivePlotter:
             
             if path:
                 print(f"Path found: {' → '.join(path)}")
+                self.pathfinding_path = path
+                # Keep the path visualization for a moment
+                self._redraw_plot()
+                self.fig.canvas.draw_idle()
+                
+                # Don't immediately reset - let user see the path
             else:
                 print(f"No path found from {start} to {end}")
-            
-            # Reset state after pathfinding
-            self._reset_state()
-            self._draw_regions()
+                # Reset state after failed pathfinding
+                self._reset_state()
+                self._redraw_plot()
+                self.fig.canvas.draw_idle()
     
     def _handle_key_press(self, event):
         """Handle keyboard events.
@@ -246,4 +275,7 @@ class InteractivePlotter:
             # Clear all state
             print("Clearing selection and pathfinding state")
             self._reset_state()
-            self._draw_regions()
+            
+            # Redraw with cleared state
+            self._redraw_plot()
+            self.fig.canvas.draw_idle()
