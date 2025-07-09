@@ -3,7 +3,7 @@ Abstract domains for program property analysis.
 These enable reasoning about abstract properties rather than concrete values.
 """
 import ast
-from typing import Any, List, Optional, Union, Set
+from typing import Any, List, Optional, Union, Set, Dict
 from enum import Enum, auto
 from .transformation import Transformation
 
@@ -121,6 +121,45 @@ def nullability_join(n1: Nullability, n2: Nullability) -> Nullability:
         return Nullability.NULLABLE
     
     return Nullability.NULLABLE
+
+
+# --- Abstract Transformers ---
+
+def abstract_add(left: Sign, right: Sign) -> Sign:
+    """Abstract transformer for addition."""
+    return sign_add(left, right)
+
+
+def abstract_multiply(left: Sign, right: Sign) -> Sign:
+    """Abstract transformer for multiplication."""
+    return sign_multiply(left, right)
+
+
+def abstract_subtract(left: Sign, right: Sign) -> Sign:
+    """Abstract transformer for subtraction (a - b = a + (-b))."""
+    return sign_add(left, sign_negate(right))
+
+
+def abstract_divide(left: Sign, right: Sign) -> Sign:
+    """Abstract transformer for division."""
+    if right == Sign.ZERO:
+        return Sign.BOTTOM  # Division by zero
+    
+    if left == Sign.BOTTOM or right == Sign.BOTTOM:
+        return Sign.BOTTOM
+    
+    if left == Sign.ZERO:
+        return Sign.ZERO
+    
+    if left == Sign.TOP or right == Sign.TOP:
+        return Sign.TOP
+    
+    # Same sign -> positive, different sign -> negative
+    if left == right or (left == Sign.POSITIVE and right == Sign.POSITIVE) or \
+       (left == Sign.NEGATIVE and right == Sign.NEGATIVE):
+        return Sign.POSITIVE
+    else:
+        return Sign.NEGATIVE
 
 
 # --- Abstract State Management ---
@@ -293,6 +332,56 @@ def is_definitely_zero(node: ast.AST, args: List[Any]) -> bool:
     return False
 
 
+# --- Proof Verification ---
+
+def verify_sign_property(var_name: str, expected_sign: Sign) -> bool:
+    """Verify that a variable has the expected sign property."""
+    actual_sign = _abstract_state.get_sign(var_name)
+    return actual_sign == expected_sign
+
+
+def prove_property(tree: ast.AST, property_spec: Dict[str, Any]) -> Dict[str, bool]:
+    """
+    Prove properties about variables at the end of program execution.
+    property_spec: Dict mapping variable names to expected properties
+    Returns: Dict mapping variable names to verification results
+    """
+    # Reset and analyze
+    reset_abstract_state(tree, [])
+    
+    # Perform abstract interpretation
+    class AbstractInterpreter(ast.NodeVisitor):
+        def visit_Module(self, node):
+            for stmt in node.body:
+                if isinstance(stmt, ast.Assign):
+                    update_sign_state(stmt, [])
+                self.visit(stmt)
+    
+    interpreter = AbstractInterpreter()
+    interpreter.visit(tree)
+    
+    # Verify properties
+    results = {}
+    for var_name, expected_prop in property_spec.items():
+        if isinstance(expected_prop, Sign):
+            results[var_name] = verify_sign_property(var_name, expected_prop)
+        else:
+            results[var_name] = False
+    
+    return results
+
+
+def get_proof_explanation(var_name: str) -> str:
+    """Generate explanation for how a property was proven."""
+    sign = _abstract_state.get_sign(var_name)
+    if sign == Sign.TOP:
+        return f"{var_name} could have any sign (insufficient information)"
+    elif sign == Sign.BOTTOM:
+        return f"{var_name} has an impossible value (error in program)"
+    else:
+        return f"{var_name} is proven to be {sign.name}"
+
+
 # --- Create Transformation objects ---
 
 ABSTRACT_DOMAIN_PRIMITIVES = [
@@ -363,5 +452,44 @@ ABSTRACT_DOMAIN_PRIMITIVES = [
         input_type="ast",
         output_type="nullability",
         num_args=0
+    ),
+    
+    # Abstract transformers
+    Transformation(
+        name="ABSTRACT_ADD",
+        operation=lambda left, right: abstract_add(left, right),
+        input_type="sign_pair",
+        output_type="sign",
+        num_args=2
+    ),
+    Transformation(
+        name="ABSTRACT_MULTIPLY", 
+        operation=lambda left, right: abstract_multiply(left, right),
+        input_type="sign_pair",
+        output_type="sign",
+        num_args=2
+    ),
+    Transformation(
+        name="ABSTRACT_SUBTRACT",
+        operation=lambda left, right: abstract_subtract(left, right),
+        input_type="sign_pair",
+        output_type="sign",
+        num_args=2
+    ),
+    Transformation(
+        name="ABSTRACT_DIVIDE",
+        operation=lambda left, right: abstract_divide(left, right),
+        input_type="sign_pair",
+        output_type="sign",
+        num_args=2
+    ),
+    
+    # Proof verification
+    Transformation(
+        name="PROVE_PROPERTY",
+        operation=lambda tree, spec: prove_property(tree, spec),
+        input_type="ast_and_spec",
+        output_type="proof_results",
+        num_args=2
     ),
 ]
