@@ -9,7 +9,7 @@ from collections import deque
 
 from regionai.data.problem import Problem
 from regionai.geometry.region import RegionND
-from regionai.discovery.transformation import PRIMITIVE_OPERATIONS, TransformationSequence
+from regionai.discovery.transformation import PRIMITIVE_OPERATIONS, TransformationSequence, INVERSE_OPERATIONS
 
 def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[RegionND]:
     """
@@ -82,6 +82,25 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
         # longer sequences to the back of the queue.
         if len(current_sequence) < MAX_SEARCH_DEPTH:
             for primitive in PRIMITIVE_OPERATIONS:
+                # --- HEURISTIC PRUNING LOGIC ---
+                # Get the last operation in the current sequence.
+                last_op = current_sequence.transformations[-1]
+                last_op_name = last_op.name
+                
+                # Check if the new primitive is the inverse of the last one.
+                if INVERSE_OPERATIONS.get(last_op_name) == primitive.name:
+                    # If it is, this path is redundant (e.g., REVERSE -> REVERSE). Skip it.
+                    continue
+                # --- END HEURISTIC PRUNING ---
+                
+                # --- HEURISTIC PRUNING LOGIC 2: TYPE MATCHING ---
+                # Check if the output type of the previous operation is compatible
+                # with the input type of the new primitive.
+                if last_op.output_type != primitive.input_type:
+                    # e.g., SUM (outputs scalar) -> REVERSE (expects vector) is invalid.
+                    continue
+                # --- END HEURISTIC PRUNING ---
+                
                 new_sequence = TransformationSequence(current_sequence.transformations + [primitive])
                 search_queue.append(new_sequence)
     

@@ -5,7 +5,7 @@ as sequences of primitive operations.
 """
 
 from dataclasses import dataclass
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Dict
 import torch
 
 @dataclass(frozen=True)
@@ -16,6 +16,8 @@ class Transformation:
     """
     name: str
     operation: Callable[[torch.Tensor], torch.Tensor]
+    input_type: str = "vector"  # Either "vector" or "scalar"
+    output_type: str = "vector"  # Either "vector" or "scalar"
     
     def __repr__(self) -> str:
         return self.name
@@ -70,12 +72,16 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
     Transformation(
         name="REVERSE",
         # Flips the tensor along its first dimension.
-        operation=lambda x: torch.flip(x, dims=[0])
+        operation=lambda x: torch.flip(x, dims=[0]),
+        input_type="vector",
+        output_type="vector"
     ),
     Transformation(
         name="SORT_ASCENDING", 
         # Sorts the tensor elements in ascending order.
-        operation=lambda x: torch.sort(x, stable=True).values
+        operation=lambda x: torch.sort(x, stable=True).values,
+        input_type="vector",
+        output_type="vector"
     ),
     # SORT_DESCENDING removed to force compositional discovery
     # Transformation(
@@ -88,42 +94,68 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
     Transformation(
         name="ADD_ONE",
         # Adds 1 to each element of the tensor.
-        operation=lambda x: x + 1
+        operation=lambda x: x + 1,
+        input_type="vector",
+        output_type="vector"
     ),
     Transformation(
         name="SUBTRACT_ONE",
         # Subtracts 1 from each element of the tensor.
-        operation=lambda x: x - 1
+        operation=lambda x: x - 1,
+        input_type="vector",
+        output_type="vector"
     ),
     
     # --- Selection Operations ---
     Transformation(
         name="GET_FIRST",
         # Selects the first element of the tensor.
-        operation=lambda x: x[0].unsqueeze(0) if x.numel() > 0 else torch.empty(0)
+        operation=lambda x: x[0].unsqueeze(0) if x.numel() > 0 else torch.empty(0),
+        input_type="vector",
+        output_type="scalar"
     ),
     Transformation(
         name="GET_LAST",
         # Selects the last element of the tensor.
-        operation=lambda x: x[-1].unsqueeze(0) if x.numel() > 0 else torch.empty(0)
+        operation=lambda x: x[-1].unsqueeze(0) if x.numel() > 0 else torch.empty(0),
+        input_type="vector",
+        output_type="scalar"
     ),
     
     # --- Aggregation Operations ---
     Transformation(
         name="SUM",
         # Computes the sum of all elements and returns it as a single-element tensor.
-        operation=lambda x: torch.sum(x).unsqueeze(0)
+        operation=lambda x: torch.sum(x).unsqueeze(0),
+        input_type="vector",
+        output_type="scalar"
     ),
     Transformation(
         name="COUNT",
         # Counts the number of elements and returns it as a single-element tensor.
-        operation=lambda x: torch.tensor([x.numel()], dtype=x.dtype, device=x.device)
+        operation=lambda x: torch.tensor([x.numel()], dtype=x.dtype, device=x.device),
+        input_type="vector",
+        output_type="scalar"
     ),
     
     # --- Filtering Operations ---
     Transformation(
         name="FILTER_GT_5",
         # Selects all elements in the tensor greater than 5.
-        operation=lambda x: x[x > 5] if (x > 5).any() else torch.tensor([], dtype=x.dtype, device=x.device)
+        operation=lambda x: x[x > 5] if (x > 5).any() else torch.tensor([], dtype=x.dtype, device=x.device),
+        input_type="vector",
+        output_type="vector"
     ),
 ]
+
+
+# --- Heuristic Metadata ---
+# This metadata will guide the search engine to be more intelligent.
+
+# Defines pairs of operations that cancel each other out.
+# The key is the name of an operation, the value is the name of its inverse.
+INVERSE_OPERATIONS: Dict[str, str] = {
+    "REVERSE": "REVERSE",
+    "ADD_ONE": "SUBTRACT_ONE", 
+    "SUBTRACT_ONE": "ADD_ONE",
+}
