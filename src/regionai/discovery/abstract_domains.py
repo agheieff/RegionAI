@@ -85,10 +85,10 @@ def sign_negate(sign: Sign) -> Sign:
 
 class Nullability(Enum):
     """Abstract domain for null analysis."""
-    NOT_NULL = auto()
-    NULLABLE = auto()
-    DEFINITELY_NULL = auto()
-    BOTTOM = auto()  # Impossible state
+    NOT_NULL = auto()      # Definitely not null
+    NULLABLE = auto()      # May or may not be null
+    DEFINITELY_NULL = auto()  # Definitely null
+    BOTTOM = auto()        # Impossible state
 
 
 def nullability_from_constant(node: ast.AST, args: List[Any]) -> Nullability:
@@ -98,6 +98,10 @@ def nullability_from_constant(node: ast.AST, args: List[Any]) -> Nullability:
             return Nullability.DEFINITELY_NULL
         else:
             return Nullability.NOT_NULL
+    elif isinstance(node, ast.Name):
+        # Check in abstract state
+        var_name = node.id
+        return _abstract_state.get_nullability(var_name)
     return Nullability.NULLABLE
 
 
@@ -111,16 +115,98 @@ def nullability_join(n1: Nullability, n2: Nullability) -> Nullability:
     if n1 == n2:
         return n1
     
-    # If one is definitely null and the other is not null, result is nullable
-    if (n1 == Nullability.DEFINITELY_NULL and n2 == Nullability.NOT_NULL) or \
-       (n1 == Nullability.NOT_NULL and n2 == Nullability.DEFINITELY_NULL):
-        return Nullability.NULLABLE
+    # Join table:
+    # NOT_NULL ∨ DEFINITELY_NULL = NULLABLE
+    # NOT_NULL ∨ NULLABLE = NULLABLE
+    # DEFINITELY_NULL ∨ NULLABLE = NULLABLE
     
-    # If either is nullable, result is nullable
     if n1 == Nullability.NULLABLE or n2 == Nullability.NULLABLE:
         return Nullability.NULLABLE
     
+    if (n1 == Nullability.NOT_NULL and n2 == Nullability.DEFINITELY_NULL) or \
+       (n1 == Nullability.DEFINITELY_NULL and n2 == Nullability.NOT_NULL):
+        return Nullability.NULLABLE
+    
     return Nullability.NULLABLE
+
+
+def nullability_widen(old: Nullability, new: Nullability, iteration: int) -> Nullability:
+    """Widening for nullability domain."""
+    WIDENING_THRESHOLD = 3
+    
+    if old == new:
+        return old
+    
+    if iteration >= WIDENING_THRESHOLD:
+        # Force to NULLABLE (top of lattice)
+        return Nullability.NULLABLE
+    
+    # Allow some refinement before widening
+    return nullability_join(old, new)
+
+
+# --- Nullability Transformers ---
+
+def nullability_assign(target_var: str, value_node: ast.AST):
+    """Update nullability state for assignment."""
+    if isinstance(value_node, ast.Constant):
+        null = nullability_from_constant(value_node, [])
+        _abstract_state.set_nullability(target_var, null)
+    elif isinstance(value_node, ast.Name):
+        # Propagate nullability
+        source_null = _abstract_state.get_nullability(value_node.id)
+        _abstract_state.set_nullability(target_var, source_null)
+    elif isinstance(value_node, ast.Call):
+        # Function calls may return null
+        _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
+    elif isinstance(value_node, ast.Attribute):
+        # Accessing attribute on nullable object
+        obj_null = nullability_from_node(value_node.value)
+        if obj_null == Nullability.DEFINITELY_NULL:
+            # This would cause null pointer exception!
+            _abstract_state.set_nullability(target_var, Nullability.BOTTOM)
+        else:
+            # Attribute access might return null
+            _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
+    else:
+        # Conservative: unknown operations may produce null
+        _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
+
+
+def nullability_from_node(node: ast.AST) -> Nullability:
+    """Get nullability of any node."""
+    if isinstance(node, ast.Constant):
+        return nullability_from_constant(node, [])
+    elif isinstance(node, ast.Name):
+        return _abstract_state.get_nullability(node.id)
+    else:
+        return Nullability.NULLABLE
+
+
+def check_null_dereference(node: ast.AST) -> Optional[str]:
+    """Check if node represents a null dereference."""
+    if isinstance(node, ast.Attribute):
+        obj_null = nullability_from_node(node.value)
+        if obj_null == Nullability.DEFINITELY_NULL:
+            return f"Null pointer exception: accessing attribute on null object"
+        elif obj_null == Nullability.NULLABLE:
+            return f"Potential null pointer: object might be null"
+    elif isinstance(node, ast.Subscript):
+        obj_null = nullability_from_node(node.value)
+        if obj_null == Nullability.DEFINITELY_NULL:
+            return f"Null pointer exception: indexing null object"
+        elif obj_null == Nullability.NULLABLE:
+            return f"Potential null pointer: object might be null"
+    return None
+
+
+def update_nullability_state(node: ast.AST, args: List[Any]) -> ast.AST:
+    """Update nullability state from an assignment."""
+    if isinstance(node, ast.Assign) and node.targets:
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            var_name = node.targets[0].id
+            nullability_assign(var_name, node.value)
+    return node
 
 
 # --- Abstract Transformers ---
@@ -452,6 +538,34 @@ ABSTRACT_DOMAIN_PRIMITIVES = [
         input_type="ast",
         output_type="nullability",
         num_args=0
+    ),
+    Transformation(
+        name="UPDATE_NULLABILITY_STATE",
+        operation=update_nullability_state,
+        input_type="ast",
+        output_type="ast",
+        num_args=0
+    ),
+    Transformation(
+        name="CHECK_NULL_DEREFERENCE",
+        operation=lambda n, a: check_null_dereference(n),
+        input_type="ast",
+        output_type="optional_string",
+        num_args=0
+    ),
+    Transformation(
+        name="NULLABILITY_JOIN",
+        operation=lambda n1, n2: nullability_join(n1, n2),
+        input_type="nullability_pair",
+        output_type="nullability",
+        num_args=2
+    ),
+    Transformation(
+        name="NULLABILITY_WIDEN",
+        operation=lambda old, new, iter: nullability_widen(old, new, iter),
+        input_type="nullability_pair_with_iter",
+        output_type="nullability",
+        num_args=3
     ),
     
     # Abstract transformers
