@@ -12,8 +12,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from regionai.geometry.box2d import Box2D
-from regionai.spaces.concept_space_2d import ConceptSpace2D
+from regionai.geometry.region import Box2D
+from regionai.spaces.concept_space import ConceptSpace2D
 from regionai.visualization.interactive_plotter import InteractivePlotter
 
 

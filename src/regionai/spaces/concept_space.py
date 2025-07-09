@@ -1,33 +1,33 @@
-"""Simple ConceptSpace2D implementation for managing 2D concept regions."""
+"""ConceptSpaceND implementation for managing N-dimensional concept regions."""
 
 from typing import Dict, Iterator, Tuple, Optional
-from ..geometry.box2d import Box2D
+from ..geometry.region import RegionND
 
 
-class ConceptSpace2D:
-    """Simple container for named 2D concept regions."""
+class ConceptSpaceND:
+    """Container for named N-dimensional concept regions."""
 
     def __init__(self):
         """Initialize an empty concept space."""
-        self._regions: Dict[str, Box2D] = {}
+        self._regions: Dict[str, RegionND] = {}
 
-    def add_region(self, name: str, region: Box2D) -> None:
+    def add_region(self, name: str, region: RegionND) -> None:
         """Add a named region to the concept space.
 
         Args:
             name: Name identifier for the region
-            region: The Box2D region to add
+            region: The RegionND region to add
         """
         self._regions[name] = region
 
-    def get_region(self, name: str) -> Box2D:
+    def get_region(self, name: str) -> RegionND:
         """Get a region by name.
 
         Args:
             name: Name of the region to retrieve
 
         Returns:
-            The Box2D region
+            The RegionND region
 
         Raises:
             KeyError: If no region exists with the given name
@@ -66,7 +66,7 @@ class ConceptSpace2D:
         parent_candidates.sort(key=lambda x: x[1])
         return parent_candidates[0][0]
 
-    def items(self) -> Iterator[Tuple[str, Box2D]]:
+    def items(self) -> Iterator[Tuple[str, RegionND]]:
         """Iterate over (name, region) pairs."""
         return iter(self._regions.items())
 
@@ -81,3 +81,7 @@ class ConceptSpace2D:
     def __contains__(self, name: str) -> bool:
         """Check if a region name exists in the space."""
         return name in self._regions
+
+
+# Backward compatibility alias
+ConceptSpace2D = ConceptSpaceND

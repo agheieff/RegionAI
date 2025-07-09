@@ -1,21 +1,25 @@
-"""Simple interactive plotter with mouse event handling."""
+"""Interactive plotter with N-D to 2D projection capabilities."""
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from ..spaces.concept_space_2d import ConceptSpace2D
+from ..spaces.concept_space import ConceptSpaceND
 from ..engine.pathfinder import Pathfinder
 
 
 class InteractivePlotter:
-    """Interactive plotter for 2D concept spaces with mouse event handling."""
+    """Interactive plotter for N-dimensional concept spaces with 2D projection."""
 
-    def __init__(self, space: ConceptSpace2D):
-        """Initialize the plotter with a concept space.
+    def __init__(self, space: ConceptSpaceND, dim_x: int = 0, dim_y: int = 1):
+        """Initialize the plotter with an N-dimensional concept space.
 
         Args:
-            space: The concept space to visualize
+            space: The N-dimensional concept space to visualize
+            dim_x: Which dimension to display on the X axis (default: 0)
+            dim_y: Which dimension to display on the Y axis (default: 1)
         """
         self.space = space
+        self.dim_x = dim_x
+        self.dim_y = dim_y
         self.fig = None
         self.ax = None
         self.patches = {}  # Map from region name to matplotlib patch
@@ -61,8 +65,12 @@ class InteractivePlotter:
         # Re-setup axes
         self.ax.set_aspect("equal")
         self.ax.grid(True, alpha=0.3)
-        self.ax.set_xlabel("X")
-        self.ax.set_ylabel("Y")
+        self.ax.set_xlabel(f"Dimension {self.dim_x}")
+        self.ax.set_ylabel(f"Dimension {self.dim_y}")
+        
+        # Add dimension info to title
+        dims_info = f" [Displaying dims: X={self.dim_x}, Y={self.dim_y}]"
+        
         # Dynamic title based on current state
         if self.pathfinding_path:
             # Path found - show the path
@@ -76,9 +84,9 @@ class InteractivePlotter:
             title = f"Selected: {self.selected_region}"
         else:
             # Default instructions
-            title = "Left-click to select. Right-click to find path. C to clear"
+            title = "Left-click: select, Right-click: path, C: clear, X/Y: cycle dims"
 
-        self.ax.set_title(title)
+        self.ax.set_title(title + dims_info)
 
         # Sort regions by area (largest first) so smaller regions are drawn on top
         sorted_regions = sorted(
@@ -87,10 +95,15 @@ class InteractivePlotter:
 
         # Draw each region according to current state
         for name, region in sorted_regions:
-            # Get properties
-            min_corner = region.min_corner.cpu().numpy()
-            width = region.size().cpu().numpy()[0]
-            height = region.size().cpu().numpy()[1]
+            # Get properties - extract only the dimensions we're displaying
+            min_corner_full = region.min_corner.cpu().numpy()
+            size_full = region.size().cpu().numpy()
+            
+            # Project to 2D by extracting only dim_x and dim_y
+            min_x = min_corner_full[self.dim_x] if self.dim_x < len(min_corner_full) else 0
+            min_y = min_corner_full[self.dim_y] if self.dim_y < len(min_corner_full) else 0
+            width = size_full[self.dim_x] if self.dim_x < len(size_full) else 0
+            height = size_full[self.dim_y] if self.dim_y < len(size_full) else 0
 
             # State-based styling with order of precedence
             if self.pathfinding_path and name in self.pathfinding_path:
@@ -148,9 +161,9 @@ class InteractivePlotter:
                 linewidth = 1
                 linestyle = "-"
 
-            # Create rectangle patch
+            # Create rectangle patch with projected coordinates
             rect = patches.Rectangle(
-                min_corner,
+                (min_x, min_y),  # Use projected coordinates
                 width,
                 height,
                 linewidth=linewidth,
@@ -164,8 +177,11 @@ class InteractivePlotter:
             self.ax.add_patch(rect)
             self.patches[name] = rect
 
-            # Add label at center
-            center = region.center().cpu().numpy()
+            # Add label at center - project to 2D
+            center_full = region.center().cpu().numpy()
+            center_x = center_full[self.dim_x] if self.dim_x < len(center_full) else min_x + width/2
+            center_y = center_full[self.dim_y] if self.dim_y < len(center_full) else min_y + height/2
+            
             # Make text more prominent for path regions
             fontweight = (
                 "bold"
@@ -177,8 +193,8 @@ class InteractivePlotter:
             )
 
             self.ax.text(
-                center[0],
-                center[1],
+                center_x,
+                center_y,
                 name,
                 ha="center",
                 va="center",
@@ -222,10 +238,15 @@ class InteractivePlotter:
             min_corner = region.min_corner.cpu().numpy()
             max_corner = region.max_corner.cpu().numpy()
 
-            # Check if click is inside this region
+            # Check if click is inside this region in the projected dimensions
+            min_x = min_corner[self.dim_x] if self.dim_x < len(min_corner) else 0
+            min_y = min_corner[self.dim_y] if self.dim_y < len(min_corner) else 0
+            max_x = max_corner[self.dim_x] if self.dim_x < len(max_corner) else 0
+            max_y = max_corner[self.dim_y] if self.dim_y < len(max_corner) else 0
+            
             if (
-                min_corner[0] <= x <= max_corner[0]
-                and min_corner[1] <= y <= max_corner[1]
+                min_x <= x <= max_x
+                and min_y <= y <= max_y
             ):
                 volume = region.volume()
                 if volume < clicked_volume:
@@ -270,10 +291,15 @@ class InteractivePlotter:
             min_corner = region.min_corner.cpu().numpy()
             max_corner = region.max_corner.cpu().numpy()
 
-            # Check if click is inside this region
+            # Check if click is inside this region in the projected dimensions
+            min_x = min_corner[self.dim_x] if self.dim_x < len(min_corner) else 0
+            min_y = min_corner[self.dim_y] if self.dim_y < len(min_corner) else 0
+            max_x = max_corner[self.dim_x] if self.dim_x < len(max_corner) else 0
+            max_y = max_corner[self.dim_y] if self.dim_y < len(max_corner) else 0
+            
             if (
-                min_corner[0] <= x <= max_corner[0]
-                and min_corner[1] <= y <= max_corner[1]
+                min_x <= x <= max_x
+                and min_y <= y <= max_y
             ):
                 volume = region.volume()
                 if volume < clicked_volume:
@@ -331,3 +357,52 @@ class InteractivePlotter:
             # Redraw with cleared state
             self._redraw_plot()
             self.fig.canvas.draw_idle()
+            
+        elif event.key == "x":
+            # Cycle X dimension
+            self._cycle_x_dimension()
+            
+        elif event.key == "y":
+            # Cycle Y dimension
+            self._cycle_y_dimension()
+    
+    def _get_max_dimension(self):
+        """Get the maximum dimension from all regions in the space."""
+        max_dim = 0
+        for _, region in self.space.items():
+            max_dim = max(max_dim, region.dims)
+        return max_dim
+    
+    def _cycle_x_dimension(self):
+        """Cycle the X dimension to the next available dimension."""
+        max_dim = self._get_max_dimension()
+        if max_dim <= 1:
+            return  # Can't cycle in 1D or 0D space
+            
+        # Cycle to next dimension
+        self.dim_x = (self.dim_x + 1) % max_dim
+        
+        # If it would equal dim_y, cycle once more
+        if self.dim_x == self.dim_y:
+            self.dim_x = (self.dim_x + 1) % max_dim
+            
+        print(f"X dimension changed to: {self.dim_x}")
+        self._redraw_plot()
+        self.fig.canvas.draw_idle()
+    
+    def _cycle_y_dimension(self):
+        """Cycle the Y dimension to the next available dimension."""
+        max_dim = self._get_max_dimension()
+        if max_dim <= 1:
+            return  # Can't cycle in 1D or 0D space
+            
+        # Cycle to next dimension
+        self.dim_y = (self.dim_y + 1) % max_dim
+        
+        # If it would equal dim_x, cycle once more
+        if self.dim_y == self.dim_x:
+            self.dim_y = (self.dim_y + 1) % max_dim
+            
+        print(f"Y dimension changed to: {self.dim_y}")
+        self._redraw_plot()
+        self.fig.canvas.draw_idle()

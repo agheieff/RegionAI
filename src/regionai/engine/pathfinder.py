@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, List, Optional
 from collections import deque
 
 if TYPE_CHECKING:
-    from ..spaces.concept_space_2d import ConceptSpace2D
+    from ..spaces.concept_space import ConceptSpaceND
 
 
 class Pathfinder:
@@ -12,7 +12,7 @@ class Pathfinder:
 
     @staticmethod
     def find_path(
-        start_region_name: str, end_region_name: str, space: "ConceptSpace2D"
+        start_region_name: str, end_region_name: str, space: "ConceptSpaceND"
     ) -> Optional[List[str]]:
         """Find the shortest hierarchical path from start region to end region.
 

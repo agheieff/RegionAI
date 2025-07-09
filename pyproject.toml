@@ -22,3 +22,6 @@ ipykernel = "^6.0.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+norecursedirs = ["scripts", ".venv"]
