@@ -26,15 +26,15 @@ def main():
     curriculum_generator = CurriculumGenerator()
     
     # 2. Get the curriculum for a problem the system cannot solve yet
-    reverse_curriculum = curriculum_generator.generate_reverse_curriculum()
-    print(f"Loaded a curriculum of {len(reverse_curriculum)} 'reverse' problems.")
+    problem_curriculum = curriculum_generator.generate_sum_curriculum()
+    print(f"Loaded a curriculum of {len(problem_curriculum)} 'sum' problems.")
     
     # 3. Create a list to store problems the engine fails to solve
     unsolved_problems = []
     
     # --- Phase 1: Initial Problem-Solving Attempt ---
     print("\n--- Phase 1: Attempting to solve problems with existing knowledge ---")
-    for problem in reverse_curriculum:
+    for problem in problem_curriculum:
         solution = engine.solve_problem(problem)
         if solution is None:
             print(f"    [FAIL] Problem '{problem.name}'")
@@ -43,7 +43,7 @@ def main():
             print(f"    [SUCCESS] Problem '{problem.name}' solved by {solution.solving_concept.name}")
     
     # 4. Summarize the initial failure
-    print(f"\n--- Phase 1 Summary: {len(unsolved_problems)}/{len(reverse_curriculum)} problems are unsolved. ---")
+    print(f"\n--- Phase 1 Summary: {len(unsolved_problems)}/{len(problem_curriculum)} problems are unsolved. ---")
     
     if not unsolved_problems:
         print("No failures to learn from. Exiting.")
