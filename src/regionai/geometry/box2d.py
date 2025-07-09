@@ -1,9 +1,7 @@
 """Box2D implementation for 2D concept regions."""
 
-from typing import Tuple
+from typing import Tuple, Optional
 import torch
-from ..core.interfaces import Region
-from ..config.settings import Config
 
 
 class Box2D:
@@ -26,14 +24,11 @@ class Box2D:
             y_max: Maximum y coordinate
             device: Torch device (defaults to config)
         """
-        if device is None:
-            device = Config().device
-            
-        self.device = device
+        self.device = device or 'cpu'
         
         # Store as torch tensors for GPU support
-        self.min_corner = torch.tensor([x_min, y_min], dtype=torch.float32, device=device)
-        self.max_corner = torch.tensor([x_max, y_max], dtype=torch.float32, device=device)
+        self.min_corner = torch.tensor([x_min, y_min], dtype=torch.float32, device=self.device)
+        self.max_corner = torch.tensor([x_max, y_max], dtype=torch.float32, device=self.device)
         
         # Validate box
         if torch.any(self.min_corner > self.max_corner):
@@ -56,7 +51,7 @@ class Box2D:
             device
         )
     
-    def contains(self, other: 'Region') -> bool:
+    def contains(self, other: 'Box2D') -> bool:
         """Check if this box contains another region.
         
         Args:
@@ -72,7 +67,7 @@ class Box2D:
         return (torch.all(self.min_corner <= other.min_corner) and 
                 torch.all(other.max_corner <= self.max_corner)).item()
     
-    def overlaps(self, other: 'Region') -> bool:
+    def overlaps(self, other: 'Box2D') -> bool:
         """Check if this box overlaps with another region.
         
         Args:
