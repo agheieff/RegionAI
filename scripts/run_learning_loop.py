@@ -7,6 +7,7 @@ the system's ability to learn from failure.
 import torch
 import sys
 import os
+import argparse
 
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -18,6 +19,19 @@ from regionai.discovery.discover import discover_concept_from_failures  # This f
 
 def main():
     """Main function to run the learning loop."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Run the RegionAI learning loop with different curricula."
+    )
+    parser.add_argument(
+        "--curriculum",
+        type=str,
+        default="sum",
+        choices=["reverse", "sum", "sort_desc", "sum_large"],
+        help="Which curriculum to use for learning (default: sum)"
+    )
+    args = parser.parse_args()
+    
     print("--- Initializing The Learning Environment ---")
     # 1. Initialize all components
     # For now, our space is empty of transformations
@@ -26,8 +40,20 @@ def main():
     curriculum_generator = CurriculumGenerator()
     
     # 2. Get the curriculum for a problem the system cannot solve yet
-    problem_curriculum = curriculum_generator.generate_sum_of_large_elements_curriculum()
-    print(f"Loaded a curriculum of {len(problem_curriculum)} 'sum of large elements' problems.")
+    curriculum_methods = {
+        "reverse": curriculum_generator.generate_reverse_curriculum,
+        "sum": curriculum_generator.generate_sum_curriculum,
+        "sort_desc": curriculum_generator.generate_sort_desc_curriculum,
+        "sum_large": curriculum_generator.generate_sum_of_large_elements_curriculum,
+    }
+    
+    if args.curriculum not in curriculum_methods:
+        print(f"Error: Unknown curriculum '{args.curriculum}'")
+        print(f"Available curricula: {', '.join(curriculum_methods.keys())}")
+        sys.exit(1)
+    
+    problem_curriculum = curriculum_methods[args.curriculum]()
+    print(f"Loaded a curriculum of {len(problem_curriculum)} '{args.curriculum}' problems.")
     
     # 3. Create a list to store problems the engine fails to solve
     unsolved_problems = []
