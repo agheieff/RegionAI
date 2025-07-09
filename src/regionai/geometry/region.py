@@ -1,7 +1,10 @@
 """RegionND implementation for N-dimensional concept regions."""
 
-from typing import Callable, List, Sequence, Union
+from typing import Callable, List, Sequence, Union, TYPE_CHECKING, Optional
 import torch
+
+if TYPE_CHECKING:
+    from regionai.discovery.transformation import TransformationSequence
 
 
 class RegionND:
@@ -13,7 +16,7 @@ class RegionND:
         max_corner: Union[torch.Tensor, Sequence[float]],
         device: str = None,
         region_type: str = "spatial",
-        transformation_function: Callable | None = None,
+        transformation_function: Optional['TransformationSequence'] = None,
     ):
         """Initialize an N-dimensional region with min and max corners.
 
@@ -22,7 +25,7 @@ class RegionND:
             max_corner: Maximum corner coordinates as tensor or sequence
             device: Torch device (defaults to 'cpu')
             region_type: The type of region ('spatial' or 'transformation').
-            transformation_function: A callable function for transformation regions.
+            transformation_function: A TransformationSequence for transformation regions.
         """
         self.device = device or "cpu"
         self.region_type = region_type

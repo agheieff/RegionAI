@@ -28,7 +28,10 @@ class ReasoningEngine:
         for concept_name, region in self.concept_space._regions.items():
             if region.region_type == "transformation":
                 if region.transformation_function:
-                    transformed_input = region.transformation_function(problem.input_data)
-                    if torch.equal(transformed_input, problem.output_data):
+                    # Get the sequence from the concept
+                    sequence = region.transformation_function
+                    # Apply the full sequence of operations
+                    result = sequence.apply(problem.input_data)
+                    if torch.equal(result, problem.output_data):
                         return Solution(problem_solved=problem, solving_concept=region)
         return None
