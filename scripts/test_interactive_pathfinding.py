@@ -3,7 +3,8 @@
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from regionai.geometry.box2d import Box2D
 from regionai.spaces.concept_space_2d import ConceptSpace2D
@@ -21,10 +22,10 @@ def main():
     print("=" * 50)
     print("\nTry right-clicking on CAT, then right-clicking on THING!")
     print("=" * 50)
-    
+
     # Create a hierarchical concept space
     space = ConceptSpace2D()
-    
+
     # Build a hierarchy
     space.add_region("THING", Box2D(0, 0, 100, 100))
     space.add_region("ANIMAL", Box2D(10, 10, 90, 90))
@@ -32,10 +33,10 @@ def main():
     space.add_region("CAT", Box2D(30, 30, 50, 50))
     space.add_region("DOG", Box2D(60, 60, 75, 75))
     space.add_region("SIAMESE", Box2D(35, 35, 45, 45))
-    
+
     # Add a separate branch
     space.add_region("PLANT", Box2D(15, 70, 35, 85))
-    
+
     # Create and show the interactive plotter
     plotter = InteractivePlotter(space)
     plotter.show()

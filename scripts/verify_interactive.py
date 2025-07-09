@@ -3,7 +3,8 @@
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from regionai.geometry.box2d import Box2D
 from regionai.spaces.concept_space_2d import ConceptSpace2D
@@ -16,16 +17,16 @@ def main():
     space.add_region("A", Box2D(0, 0, 100, 100))
     space.add_region("B", Box2D(20, 20, 80, 80))
     space.add_region("C", Box2D(40, 40, 60, 60))
-    
+
     # Test the plotter
     plotter = InteractivePlotter(space)
-    
+
     # Verify state initialization
     print("Initial state:")
     print(f"  pathfinding_start: {plotter.pathfinding_start}")
     print(f"  pathfinding_path: {plotter.pathfinding_path}")
     print(f"  selected_region: {plotter.selected_region}")
-    
+
     # Test reset
     plotter.pathfinding_start = "TEST"
     plotter._reset_state()
@@ -33,10 +34,10 @@ def main():
     print(f"  pathfinding_start: {plotter.pathfinding_start}")
     print(f"  pathfinding_path: {plotter.pathfinding_path}")
     print(f"  selected_region: {plotter.selected_region}")
-    
+
     print("\nPlotter is ready for interactive use!")
     print("Remember: Right-click might require special handling in some terminals.")
-    
+
     # Show the interactive plot
     plotter.show()
 
