@@ -142,4 +142,8 @@ This is an active research project exploring compositional algorithm discovery. 
 
 ## License
 
-MIT
+Copyright © 2024 Arkadiy Agheieff. All rights reserved.
+
+This is proprietary software. Please see the [LICENSE](LICENSE) file for details.
+
+For permission requests, please contact agheieff@pm.me. I am generally open to granting permissions for academic, research, and reasonable commercial use.

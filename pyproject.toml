@@ -2,8 +2,8 @@
 name = "regionai"
 version = "0.1.0"
 description = "Region-based embeddings for language models"
-authors = ["agheieff <agheieff@pm.me>"]
-license = "MIT"
+authors = ["Arkadiy Agheieff <agheieff@pm.me>"]
+license = "Proprietary"
 readme = "README.md"
 repository = "https://github.com/agheieff/RegionAI"
 
