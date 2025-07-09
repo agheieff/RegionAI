@@ -1,6 +1,6 @@
 """RegionND implementation for N-dimensional concept regions."""
 
-from typing import List, Sequence, Union
+from typing import Callable, List, Sequence, Union
 import torch
 
 
@@ -8,9 +8,12 @@ class RegionND:
     """An N-dimensional axis-aligned bounding box representing a concept region."""
 
     def __init__(
-        self, min_corner: Union[torch.Tensor, Sequence[float]], 
-        max_corner: Union[torch.Tensor, Sequence[float]], 
-        device: str = None
+        self,
+        min_corner: Union[torch.Tensor, Sequence[float]],
+        max_corner: Union[torch.Tensor, Sequence[float]],
+        device: str = None,
+        region_type: str = "spatial",
+        transformation_function: Callable | None = None,
     ):
         """Initialize an N-dimensional region with min and max corners.
 
@@ -18,8 +21,12 @@ class RegionND:
             min_corner: Minimum corner coordinates as tensor or sequence
             max_corner: Maximum corner coordinates as tensor or sequence
             device: Torch device (defaults to 'cpu')
+            region_type: The type of region ('spatial' or 'transformation').
+            transformation_function: A callable function for transformation regions.
         """
         self.device = device or "cpu"
+        self.region_type = region_type
+        self.transformation_function = transformation_function
 
         # Convert to tensors if needed
         if not isinstance(min_corner, torch.Tensor):
@@ -191,7 +198,8 @@ class RegionND:
             f"RegionND(dims={self.dims}, "
             f"min={self.min_corner.tolist()}, "
             f"max={self.max_corner.tolist()}, "
-            f"volume={self.volume():.2f})"
+            f"volume={self.volume():.2f}, "
+            f"type={self.region_type})"
         )
 
     def __str__(self) -> str:
