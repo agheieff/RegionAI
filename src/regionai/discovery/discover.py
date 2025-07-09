@@ -9,7 +9,10 @@ from collections import deque
 
 from regionai.data.problem import Problem
 from regionai.geometry.region import RegionND
-from regionai.discovery.transformation import PRIMITIVE_OPERATIONS, TransformationSequence, INVERSE_OPERATIONS
+from regionai.discovery.transformation import (
+    PRIMITIVE_OPERATIONS, TransformationSequence, INVERSE_OPERATIONS,
+    AppliedTransformation
+)
 
 def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[RegionND]:
     """
@@ -32,7 +35,22 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
     
     # 1. Initialize the search queue. It will hold TransformationSequence objects.
     # Start with all sequences of length 1.
-    search_queue = deque([TransformationSequence([p]) for p in PRIMITIVE_OPERATIONS])
+    search_queue = deque()
+    
+    # Add all primitives to the queue, handling those with arguments
+    for primitive in PRIMITIVE_OPERATIONS:
+        if primitive.num_args == 0:
+            # No arguments needed
+            applied = AppliedTransformation(primitive, [])
+            seq = TransformationSequence([applied])
+            search_queue.append(seq)
+        elif primitive.num_args == 1 and primitive.name == "ADD_TENSOR":
+            # Special case: try using input as argument (for doubling)
+            # We'll use a marker tensor to indicate "use input"
+            marker = torch.tensor([-999.0])  # Special marker
+            applied = AppliedTransformation(primitive, [marker])
+            seq = TransformationSequence([applied])
+            search_queue.append(seq)
     
     # Set a maximum search depth to prevent infinite loops.
     MAX_SEARCH_DEPTH = 3  # Increased to allow deeper compositional discovery
@@ -101,7 +119,17 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
                     continue
                 # --- END HEURISTIC PRUNING ---
                 
-                new_sequence = TransformationSequence(current_sequence.transformations + [primitive])
+                # Create new sequence with proper AppliedTransformation
+                if primitive.num_args == 0:
+                    new_applied = AppliedTransformation(primitive, [])
+                elif primitive.num_args == 1 and primitive.name == "ADD_TENSOR":
+                    # For composition, don't use ADD_TENSOR with input arg
+                    continue  # Skip parameterized ops in composition for now
+                else:
+                    continue  # Skip other parameterized ops
+                
+                new_applied_list = current_sequence.applied_transformations + [new_applied]
+                new_sequence = TransformationSequence(new_applied_list)
                 search_queue.append(new_sequence)
     
     # If the while loop finishes, no solution was found.

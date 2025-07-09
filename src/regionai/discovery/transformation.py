@@ -8,6 +8,22 @@ from dataclasses import dataclass
 from typing import List, Callable, Optional, Dict
 import torch
 
+
+@dataclass(frozen=True)
+class AppliedTransformation:
+    """
+    Represents a Transformation with its concrete arguments.
+    This binds a transformation to specific tensor arguments.
+    """
+    transformation: 'Transformation'
+    arguments: List[torch.Tensor]
+    
+    def __repr__(self) -> str:
+        if self.arguments:
+            return f"{self.transformation.name}(args={len(self.arguments)})"
+        return str(self.transformation)
+
+
 @dataclass(frozen=True)
 class Transformation:
     """
@@ -15,25 +31,29 @@ class Transformation:
     This is a single "instruction" in our transformation language.
     """
     name: str
-    operation: Callable[[torch.Tensor], torch.Tensor]
+    operation: Callable[..., torch.Tensor]  # Now accepts variable arguments
     input_type: str = "vector"  # Either "vector" or "scalar"
     output_type: str = "vector"  # Either "vector" or "scalar"
+    num_args: int = 0  # Number of additional tensor arguments required
     
     def __repr__(self) -> str:
         return self.name
 
 class TransformationSequence:
     """
-    Represents a sequence of Transformation objects that form a complete algorithm.
+    Represents a sequence of AppliedTransformation objects that form a complete algorithm.
+    Now handles transformations with their arguments.
     """
-    def __init__(self, transformations: List[Transformation]):
+    def __init__(self, applied_transformations: List[AppliedTransformation]):
         """
-        Initializes the sequence with a list of transformations.
+        Initializes the sequence with a list of applied transformations.
         
         Args:
-            transformations: The list of Transformation objects to apply in order.
+            applied_transformations: The list of AppliedTransformation objects to apply in order.
         """
-        self.transformations = transformations
+        self.applied_transformations = applied_transformations
+        # Keep backward compatibility
+        self.transformations = [at.transformation for at in applied_transformations]
     
     def apply(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -46,21 +66,41 @@ class TransformationSequence:
             The output tensor after all transformations have been applied.
         """
         current_value = x
-        for trans in self.transformations:
-            current_value = trans.operation(current_value)
+        for applied_trans in self.applied_transformations:
+            trans = applied_trans.transformation
+            args = applied_trans.arguments
+            
+            if trans.num_args == 0:
+                current_value = trans.operation(current_value)
+            else:
+                # Handle special marker for "use input as argument"
+                processed_args = []
+                for arg in args:
+                    if isinstance(arg, torch.Tensor) and arg.numel() == 1 and arg.item() == -999.0:
+                        # Use the current input as the argument
+                        processed_args.append(x)
+                    else:
+                        processed_args.append(arg)
+                current_value = trans.operation(current_value, processed_args)
         return current_value
     
     def __repr__(self) -> str:
         """
         Provides a human-readable representation of the algorithm.
-        Example: "[REVERSE -> ADD_ONE]"
+        Example: "[REVERSE -> ADD_TENSOR(args=1)]"
         """
-        if not self.transformations:
+        if not self.applied_transformations:
             return "[IDENTITY]"
-        return f"[{' -> '.join(map(str, self.transformations))}]"
+        return f"[{' -> '.join(map(str, self.applied_transformations))}]"
     
     def __len__(self) -> int:
-        return len(self.transformations)
+        return len(self.applied_transformations)
+    
+    @classmethod
+    def from_transformations(cls, transformations: List[Transformation]) -> 'TransformationSequence':
+        """Create a TransformationSequence from a list of Transformations (no args)."""
+        applied = [AppliedTransformation(t, []) for t in transformations]
+        return cls(applied)
 
 
 # --- Library of Primitive Operations ---
@@ -145,6 +185,16 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
         operation=lambda x: x[x > 5] if (x > 5).any() else torch.tensor([], dtype=x.dtype, device=x.device),
         input_type="vector",
         output_type="vector"
+    ),
+    
+    # --- Parameterized Operations ---
+    Transformation(
+        name="ADD_TENSOR",
+        # This operation takes the main input `x` and a list of args
+        operation=lambda x, args: x + args[0],
+        input_type="vector",
+        output_type="vector",
+        num_args=1  # This primitive requires one argument
     ),
 ]
 

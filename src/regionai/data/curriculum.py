@@ -89,6 +89,33 @@ class CurriculumGenerator:
             ),
         ]
     
+    def generate_doubling_curriculum(self) -> List[Problem]:
+        """Generates a curriculum for learning the doubling operation (x * 2)."""
+        print("Generating curriculum for 'DOUBLING' operation...")
+        return [
+            Problem(
+                name="double_1",
+                problem_type="transformation",
+                input_data=torch.tensor([1, 2, 3], dtype=torch.float32),
+                output_data=torch.tensor([2, 4, 6], dtype=torch.float32),
+                description="[1, 2, 3] -> [2, 4, 6] (each element doubled)"
+            ),
+            Problem(
+                name="double_2",
+                problem_type="transformation",
+                input_data=torch.tensor([5, -3, 0], dtype=torch.float32),
+                output_data=torch.tensor([10, -6, 0], dtype=torch.float32),
+                description="[5, -3, 0] -> [10, -6, 0] (handles negatives and zero)"
+            ),
+            Problem(
+                name="double_3",
+                problem_type="transformation",
+                input_data=torch.tensor([0.5, 1.5, 2.5], dtype=torch.float32),
+                output_data=torch.tensor([1.0, 3.0, 5.0], dtype=torch.float32),
+                description="[0.5, 1.5, 2.5] -> [1.0, 3.0, 5.0] (handles decimals)"
+            ),
+        ]
+    
     def generate_sum_of_large_elements_curriculum(self) -> List[Problem]:
         """Generates a curriculum for learning a FILTER -> SUM composition."""
         print("Generating curriculum for 'FILTER_GT_5 -> SUM' composition...")
