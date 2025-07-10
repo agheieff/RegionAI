@@ -16,8 +16,9 @@ from src.regionai.discovery.range_domain import (
 )
 from src.regionai.analysis import (
     build_cfg, analyze_with_fixpoint,
-    build_call_graph, analyze_interprocedural
+    build_call_graph
 )
+from src.regionai.analysis.interprocedural import analyze_interprocedural
 
 
 class TestSignDomain:

@@ -20,6 +20,7 @@ from ..discovery.abstract_domains import (
 )
 from .semantic_fingerprint import SemanticFingerprint
 from .fingerprinter import Fingerprinter
+from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
 
 
 @dataclass
@@ -30,6 +31,7 @@ class AnalysisResult:
     warnings: List[str]
     call_graph: CallGraph
     semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = None
+    semantic_db: Optional[SemanticDB] = None
 
 
 class InterproceduralAnalyzer:
@@ -46,6 +48,7 @@ class InterproceduralAnalyzer:
         self.warnings: List[str] = []
         self.fingerprinter = Fingerprinter()
         self.semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = {}
+        self.semantic_db = SemanticDB()
         
     def analyze_program(self, tree: ast.AST) -> AnalysisResult:
         """
@@ -101,7 +104,8 @@ class InterproceduralAnalyzer:
             errors=self.errors,
             warnings=self.warnings,
             call_graph=self.call_graph,
-            semantic_fingerprints=self.semantic_fingerprints
+            semantic_fingerprints=self.semantic_fingerprints,
+            semantic_db=self.semantic_db
         )
     
     def _collect_functions(self, tree: ast.AST):
@@ -192,6 +196,14 @@ class InterproceduralAnalyzer:
         # Generate semantic fingerprint for this context
         fingerprint = self.fingerprinter.fingerprint(context, summary)
         self.semantic_fingerprints[context] = fingerprint
+        
+        # Add to semantic database
+        semantic_entry = SemanticEntry(
+            function_name=FunctionName(func_name),
+            context=context,
+            fingerprint=fingerprint
+        )
+        self.semantic_db.add(semantic_entry)
         
         # Store analyzer reference for worklist processing
         self._last_analyzer = analyzer

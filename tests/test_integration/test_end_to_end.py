@@ -16,8 +16,9 @@ from src.regionai.discovery.discovery import DiscoveryEngine
 from src.regionai.data.problem import Problem
 from src.regionai.analysis import (
     build_cfg, analyze_with_fixpoint,
-    build_call_graph, analyze_interprocedural
+    build_call_graph
 )
+from src.regionai.analysis.interprocedural import analyze_interprocedural
 from src.regionai.discovery.abstract_domains import (
     Sign, Nullability, reset_abstract_state,
     check_null_dereference, prove_property
