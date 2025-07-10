@@ -15,6 +15,7 @@ from ..language.trainer import LanguageBridgeTrainer
 from ..language.projection_model import ModelCheckpoint
 from ..knowledge.graph import KnowledgeGraph, Concept
 from ..knowledge.discovery import ConceptDiscoverer
+from ..knowledge.linker import KnowledgeLinker
 
 
 def analyze_code(code: str, include_source: bool = True) -> AnalysisResult:
@@ -558,18 +559,21 @@ def evaluate_language_model(semantic_db: SemanticDB,
     }
 
 
-def build_knowledge_graph(code: str, include_source: bool = True) -> KnowledgeGraph:
+def build_knowledge_graph(code: str, include_source: bool = True, 
+                         enrich_from_docs: bool = True) -> KnowledgeGraph:
     """
     Build a knowledge graph of real-world concepts from code analysis.
     
     This function orchestrates the complete process of discovering concepts:
     1. Analyzes the code to build a SemanticDB
     2. Applies concept discovery heuristics
-    3. Returns a populated KnowledgeGraph
+    3. Optionally enriches the graph with relationships from documentation
+    4. Returns a populated KnowledgeGraph
     
     Args:
         code: Python source code to analyze
         include_source: Whether to include source for documentation extraction
+        enrich_from_docs: Whether to enrich the graph using natural language documentation
         
     Returns:
         KnowledgeGraph containing discovered concepts and relationships
@@ -591,7 +595,20 @@ def build_knowledge_graph(code: str, include_source: bool = True) -> KnowledgeGr
     
     # Print discovery statistics
     print(f"Discovered {len(knowledge_graph)} concepts")
-    print(f"Found {len(knowledge_graph.graph.edges())} relationships")
+    print(f"Found {len(knowledge_graph.graph.edges())} relationships from code patterns")
+    
+    # Enrich with relationships from documentation
+    if enrich_from_docs and include_source:
+        print("Enriching graph from documentation...")
+        linker = KnowledgeLinker(result.semantic_db, knowledge_graph)
+        knowledge_graph = linker.enrich_graph()
+        
+        # Print enrichment statistics
+        discovered_rels = linker.get_discovered_relationships()
+        if discovered_rels:
+            print(f"Discovered {len(discovered_rels)} additional relationships from text")
+    
+    print(f"Final graph: {len(knowledge_graph)} concepts, {len(knowledge_graph.graph.edges())} relationships")
     
     return knowledge_graph
 
@@ -612,18 +629,21 @@ def build_knowledge_graph_from_semantic_db(semantic_db: SemanticDB) -> Knowledge
     return discoverer.discover_concepts()
 
 
-def discover_domain_model(code: str, output_file: Optional[str] = None) -> Dict[str, Any]:
+def discover_domain_model(code: str, output_file: Optional[str] = None,
+                         enrich_from_docs: bool = True) -> Dict[str, Any]:
     """
     Discover the domain model (concepts and relationships) from code.
     
     This provides a comprehensive analysis including:
     - Discovered concepts with confidence scores
-    - Relationships between concepts
+    - Relationships between concepts (from code patterns and documentation)
     - Discovery report explaining how concepts were found
+    - Enrichment report showing relationships found in text
     
     Args:
         code: Python source code to analyze
         output_file: Optional file path to save the knowledge graph JSON
+        enrich_from_docs: Whether to enrich with relationships from documentation
         
     Returns:
         Dictionary containing:
@@ -631,10 +651,11 @@ def discover_domain_model(code: str, output_file: Optional[str] = None) -> Dict[
         - concepts: List of discovered concepts with metadata
         - relationships: List of discovered relationships
         - discovery_report: Human-readable discovery report
+        - enrichment_report: Report of relationships found in documentation
         - visualization: Text visualization of the graph
     """
-    # Build the knowledge graph
-    kg = build_knowledge_graph(code)
+    # Build the knowledge graph with enrichment
+    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=enrich_from_docs)
     
     # Extract information for the result
     concepts = []
@@ -658,10 +679,17 @@ def discover_domain_model(code: str, output_file: Optional[str] = None) -> Dict[
                 })
     
     # Generate discovery report
-    result = analyze_code(code)
+    result = analyze_code(code, include_source=True)
     discoverer = ConceptDiscoverer(result.semantic_db)
     discoverer.discover_concepts()  # Re-run to populate internal state
     discovery_report = discoverer.generate_discovery_report()
+    
+    # Generate enrichment report if applicable
+    enrichment_report = ""
+    if enrich_from_docs:
+        linker = KnowledgeLinker(result.semantic_db, kg)
+        linker.enrich_graph()  # Re-run to populate internal state
+        enrichment_report = linker.generate_enrichment_report()
     
     # Save to file if requested
     if output_file:
@@ -674,6 +702,7 @@ def discover_domain_model(code: str, output_file: Optional[str] = None) -> Dict[
         'concepts': sorted(concepts, key=lambda c: c['confidence'], reverse=True),
         'relationships': relationships,
         'discovery_report': discovery_report,
+        'enrichment_report': enrichment_report,
         'visualization': kg.visualize()
     }
 

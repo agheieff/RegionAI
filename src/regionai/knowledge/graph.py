@@ -124,7 +124,9 @@ class KnowledgeGraph:
     
     def add_relation(self, source: Concept, target: Concept, 
                     relation: Relation,
-                    metadata: Optional[RelationMetadata] = None) -> None:
+                    metadata: Optional[RelationMetadata] = None,
+                    confidence: Optional[float] = None,
+                    evidence: Optional[str] = None) -> None:
         """
         Add a directed relationship between two concepts.
         
@@ -133,9 +135,18 @@ class KnowledgeGraph:
             target: The target concept
             relation: The type of relationship
             metadata: Optional metadata about this relationship
+            confidence: Confidence score for this relationship (0.0 to 1.0)
+            evidence: Evidence supporting this relationship (e.g., source text)
         """
         if metadata is None:
             metadata = RelationMetadata(relation_type=relation)
+        
+        # Update metadata with confidence and evidence if provided
+        if confidence is not None:
+            metadata.confidence = confidence
+        if evidence is not None:
+            if evidence not in metadata.evidence_patterns:
+                metadata.evidence_patterns.append(evidence)
         
         # Ensure both concepts exist
         if source not in self.graph:
@@ -145,7 +156,9 @@ class KnowledgeGraph:
         
         self.graph.add_edge(source, target, 
                            label=relation,
-                           metadata=metadata)
+                           metadata=metadata,
+                           confidence=metadata.confidence,
+                           evidence=evidence or "code_pattern")
         self._stats['relations_added'] += 1
         self._stats['last_modified'] = datetime.now()
     
@@ -179,6 +192,45 @@ class KnowledgeGraph:
             for data in self.graph.get_edge_data(source, concept).values():
                 relations.append((Concept(source), concept,
                                 Relation(data['label'])))
+        
+        return relations
+    
+    def get_relations_with_confidence(self, concept) -> List[Dict[str, Any]]:
+        """
+        Get all relationships involving a concept with confidence and evidence.
+        
+        Returns:
+            List of dictionaries containing relationship details
+        """
+        # Handle both string and Concept inputs
+        if isinstance(concept, str):
+            concept = Concept(concept)
+            
+        relations = []
+        
+        # Outgoing relations
+        for target in self.graph.successors(concept):
+            for data in self.graph.get_edge_data(concept, target).values():
+                relations.append({
+                    'source': concept,
+                    'target': Concept(target),
+                    'relation': Relation(data['label']),
+                    'confidence': data.get('confidence', 1.0),
+                    'evidence': data.get('evidence', 'code_pattern'),
+                    'metadata': data.get('metadata')
+                })
+        
+        # Incoming relations
+        for source in self.graph.predecessors(concept):
+            for data in self.graph.get_edge_data(source, concept).values():
+                relations.append({
+                    'source': Concept(source),
+                    'target': concept,
+                    'relation': Relation(data['label']),
+                    'confidence': data.get('confidence', 1.0),
+                    'evidence': data.get('evidence', 'code_pattern'),
+                    'metadata': data.get('metadata')
+                })
         
         return relations
     
