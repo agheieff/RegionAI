@@ -69,6 +69,9 @@ class FunctionSummary:
     # Postconditions that hold after call
     postconditions: List[str] = field(default_factory=list)
     
+    # Additional semantic information
+    returns_parameter: Optional[str] = None  # Name of parameter if function returns it unchanged
+    
     def __hash__(self):
         return hash(self.function_name)
 
@@ -98,7 +101,7 @@ class SummaryComputer:
             param_summaries.append(param_summary)
         
         # Analyze return statements to compute return summary
-        return_summary = self._analyze_returns(func_def, exit_state)
+        return_summary, returned_param = self._analyze_returns(func_def, exit_state)
         
         # Detect side effects
         side_effects = self._analyze_side_effects(func_def)
@@ -108,7 +111,8 @@ class SummaryComputer:
             function_name=func_def.name,
             parameters=param_summaries,
             returns=return_summary,
-            side_effects=side_effects
+            side_effects=side_effects,
+            returns_parameter=returned_param
         )
         
         # Add specific preconditions/postconditions based on analysis
@@ -117,11 +121,19 @@ class SummaryComputer:
         self.summaries[func_def.name] = summary
         return summary
     
-    def _analyze_returns(self, func_def: ast.FunctionDef, exit_state: AbstractState) -> ReturnSummary:
+    def _analyze_returns(self, func_def: ast.FunctionDef, exit_state: AbstractState) -> Tuple[ReturnSummary, Optional[str]]:
         """Analyze all return statements in a function."""
-        return_visitor = ReturnAnalyzer(exit_state)
+        return_visitor = ReturnAnalyzer(exit_state, func_def)
         return_visitor.visit(func_def)
-        return return_visitor.get_summary()
+        
+        # Check if function consistently returns a parameter
+        returned_param = None
+        if return_visitor.returned_parameters:
+            # If all returns are the same parameter, it's an identity function
+            if all(p == return_visitor.returned_parameters[0] for p in return_visitor.returned_parameters):
+                returned_param = return_visitor.returned_parameters[0]
+        
+        return return_visitor.get_summary(), returned_param
     
     def _analyze_side_effects(self, func_def: ast.FunctionDef) -> SideEffectSummary:
         """Detect side effects in a function."""
@@ -174,12 +186,14 @@ class SummaryComputer:
 class ReturnAnalyzer(ast.NodeVisitor):
     """Analyze return statements to compute return summary."""
     
-    def __init__(self, exit_state: AbstractState):
+    def __init__(self, exit_state: AbstractState, func_def: ast.FunctionDef = None):
         self.exit_state = exit_state
+        self.func_def = func_def
         self.return_signs = []
         self.return_nullabilities = []
         self.has_return = False
         self.all_paths_return = True  # Simplified
+        self.returned_parameters = []  # Track which parameters are returned
         
     def visit_Return(self, node):
         self.has_return = True
@@ -209,6 +223,12 @@ class ReturnAnalyzer(ast.NodeVisitor):
                 null = self.exit_state.get_nullability(node.value.id)
                 if null:
                     self.return_nullabilities.append(null)
+                
+                # Check if this is a parameter being returned
+                if self.func_def:
+                    param_names = [arg.arg for arg in self.func_def.args.args]
+                    if node.value.id in param_names:
+                        self.returned_parameters.append(node.value.id)
         
         self.generic_visit(node)
     

@@ -18,6 +18,8 @@ from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
     reset_abstract_state
 )
+from .semantic_fingerprint import SemanticFingerprint
+from .fingerprinter import Fingerprinter
 
 
 @dataclass
@@ -27,6 +29,7 @@ class AnalysisResult:
     errors: List[str]
     warnings: List[str]
     call_graph: CallGraph
+    semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = None
 
 
 class InterproceduralAnalyzer:
@@ -41,6 +44,8 @@ class InterproceduralAnalyzer:
         self.context_cache = ContextSensitiveSummaryCache()
         self.errors: List[str] = []
         self.warnings: List[str] = []
+        self.fingerprinter = Fingerprinter()
+        self.semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = {}
         
     def analyze_program(self, tree: ast.AST) -> AnalysisResult:
         """
@@ -95,7 +100,8 @@ class InterproceduralAnalyzer:
             function_summaries=self.summary_computer.summaries,
             errors=self.errors,
             warnings=self.warnings,
-            call_graph=self.call_graph
+            call_graph=self.call_graph,
+            semantic_fingerprints=self.semantic_fingerprints
         )
     
     def _collect_functions(self, tree: ast.AST):
@@ -134,7 +140,8 @@ class InterproceduralAnalyzer:
         
         # Create enhanced analyzer that handles function calls
         analyzer = InterproceduralFixpointAnalyzer(
-            cfg, self.call_graph, self.summary_computer, self.errors, self.warnings
+            cfg, self.call_graph, self.summary_computer, self.errors, self.warnings,
+            self.fingerprinter, self.semantic_fingerprints
         )
         
         # Copy existing summaries to the analyzer's cache
@@ -182,6 +189,10 @@ class InterproceduralAnalyzer:
             self.summary_computer.context_summaries = {}
         self.summary_computer.context_summaries[context] = summary
         
+        # Generate semantic fingerprint for this context
+        fingerprint = self.fingerprinter.fingerprint(context, summary)
+        self.semantic_fingerprints[context] = fingerprint
+        
         # Store analyzer reference for worklist processing
         self._last_analyzer = analyzer
     
@@ -214,7 +225,7 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
     Enhanced fixpoint analyzer that handles interprocedural calls.
     """
     
-    def __init__(self, cfg, call_graph, summary_computer, errors, warnings):
+    def __init__(self, cfg, call_graph, summary_computer, errors, warnings, fingerprinter=None, semantic_fingerprints=None):
         super().__init__(cfg)
         self.call_graph = call_graph
         self.summary_computer = summary_computer
@@ -224,6 +235,9 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         self.summaries: Dict[CallContext, FunctionSummary] = {}
         # Track functions to analyze with specific contexts
         self.analysis_worklist: List[Tuple[str, AbstractState]] = []
+        # Optional fingerprinting support
+        self.fingerprinter = fingerprinter
+        self.semantic_fingerprints = semantic_fingerprints or {}
     
     def _analyze_block(self, block, input_state):
         """Override to handle function calls."""
