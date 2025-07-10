@@ -18,8 +18,8 @@ from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
     reset_abstract_state
 )
-from .semantic_fingerprint import SemanticFingerprint
-from .fingerprinter import Fingerprinter
+from ..semantic.fingerprint import SemanticFingerprint
+from ..semantic.fingerprinter import Fingerprinter
 from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
 
 

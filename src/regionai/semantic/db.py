@@ -10,7 +10,7 @@ from typing import Dict, List, Set, NewType, Optional, Tuple
 from collections import defaultdict
 
 from ..analysis.summary import CallContext
-from ..analysis.semantic_fingerprint import (
+from .fingerprint import (
     SemanticFingerprint, Behavior, FingerprintComparison
 )
 

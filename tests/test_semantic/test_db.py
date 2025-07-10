@@ -7,9 +7,9 @@ import pytest
 from typing import Set
 
 from src.regionai.semantic.db import SemanticDB, SemanticEntry, FunctionName
-from src.regionai.analysis.semantic_fingerprint import SemanticFingerprint, Behavior
+from src.regionai.semantic.fingerprint import SemanticFingerprint, Behavior
 from src.regionai.analysis.summary import CallContext
-from src.regionai.api import (
+from src.regionai.pipeline.api import (
     analyze_code, find_similar_functions, find_equivalent_functions,
     compare_functions, discover_patterns, suggest_refactoring_opportunities
 )

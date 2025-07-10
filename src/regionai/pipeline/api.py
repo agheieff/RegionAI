@@ -7,9 +7,9 @@ discovering semantic relationships between functions.
 import ast
 from typing import List, Optional, Dict, Tuple
 
-from .analysis.interprocedural import InterproceduralAnalyzer, AnalysisResult
-from .semantic.db import SemanticDB, SemanticEntry, FunctionName
-from .analysis.semantic_fingerprint import SemanticFingerprint, Behavior
+from ..analysis.interprocedural import InterproceduralAnalyzer, AnalysisResult
+from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
+from ..semantic.fingerprint import SemanticFingerprint, Behavior
 
 
 def analyze_code(code: str) -> AnalysisResult:

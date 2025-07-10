@@ -9,7 +9,7 @@ import pytest
 from typing import Set
 
 from src.regionai.analysis.interprocedural import InterproceduralAnalyzer
-from src.regionai.analysis.semantic_fingerprint import Behavior, SemanticFingerprint
+from src.regionai.semantic.fingerprint import Behavior, SemanticFingerprint
 from src.regionai.analysis.summary import CallContext
 from src.regionai.discovery.abstract_domains import AbstractState, Sign, Nullability
 

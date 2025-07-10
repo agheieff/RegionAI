@@ -8,9 +8,9 @@ the conceptual essence of what a function does.
 from typing import Optional, List, Any
 import ast
 
-from .summary import CallContext
-from .function_summary import FunctionSummary, ReturnSummary
-from .semantic_fingerprint import SemanticFingerprint, Behavior
+from ..analysis.summary import CallContext
+from ..analysis.function_summary import FunctionSummary, ReturnSummary
+from .fingerprint import SemanticFingerprint, Behavior
 from ..discovery.abstract_domains import (
     Sign, Nullability, AbstractState
 )
