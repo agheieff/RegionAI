@@ -1,94 +1,40 @@
 """
 Abstract domains for program property analysis.
-These enable reasoning about abstract properties rather than concrete values.
+Now uses unified base class implementation.
 """
 import ast
-from typing import Any, List, Optional, Union, Set, Dict
-from enum import Enum, auto
-from .transformation import Transformation
+from typing import Any, List, Optional, Dict
+import warnings
 
+# Import everything from the new unified implementation
+from .abstract_domain_base import (
+    # Base class
+    AbstractDomain,
+    
+    # Sign domain
+    Sign, SignDomain,
+    sign_add, sign_multiply,
+    
+    # Nullability domain
+    Nullability,
+    nullability_join,
+    
+    # Abstract state
+    AbstractState,
+)
 
-# --- Sign Domain ---
-
-class Sign(Enum):
-    """Abstract domain for sign analysis."""
-    POSITIVE = auto()
-    NEGATIVE = auto() 
-    ZERO = auto()
-    TOP = auto()  # Could be any sign (unknown)
-    BOTTOM = auto()  # Impossible/error state
-
+# Additional legacy functions for compatibility
 
 def sign_from_constant(node: ast.AST, args: List[Any]) -> Sign:
     """Extract sign from a constant node."""
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        if node.value > 0:
-            return Sign.POSITIVE
-        elif node.value < 0:
-            return Sign.NEGATIVE
-        else:
-            return Sign.ZERO
+        return SignDomain.from_constant(node.value)
     return Sign.TOP
-
-
-def sign_add(left: Sign, right: Sign) -> Sign:
-    """Abstract addition for sign domain."""
-    if left == Sign.BOTTOM or right == Sign.BOTTOM:
-        return Sign.BOTTOM
-    
-    if left == Sign.TOP or right == Sign.TOP:
-        return Sign.TOP
-    
-    if left == Sign.ZERO:
-        return right
-    if right == Sign.ZERO:
-        return left
-    
-    if left == Sign.POSITIVE and right == Sign.POSITIVE:
-        return Sign.POSITIVE
-    if left == Sign.NEGATIVE and right == Sign.NEGATIVE:
-        return Sign.NEGATIVE
-    
-    # POSITIVE + NEGATIVE or NEGATIVE + POSITIVE -> could be any sign
-    return Sign.TOP
-
-
-def sign_multiply(left: Sign, right: Sign) -> Sign:
-    """Abstract multiplication for sign domain."""
-    if left == Sign.BOTTOM or right == Sign.BOTTOM:
-        return Sign.BOTTOM
-    
-    if left == Sign.ZERO or right == Sign.ZERO:
-        return Sign.ZERO
-    
-    if left == Sign.TOP or right == Sign.TOP:
-        return Sign.TOP
-    
-    # Both are either POSITIVE or NEGATIVE
-    if left == right:  # Same sign
-        return Sign.POSITIVE
-    else:  # Different signs
-        return Sign.NEGATIVE
 
 
 def sign_negate(sign: Sign) -> Sign:
     """Abstract negation for sign domain."""
-    if sign == Sign.POSITIVE:
-        return Sign.NEGATIVE
-    elif sign == Sign.NEGATIVE:
-        return Sign.POSITIVE
-    else:  # ZERO, TOP, BOTTOM
-        return sign
-
-
-# --- Nullability Domain ---
-
-class Nullability(Enum):
-    """Abstract domain for null analysis."""
-    NOT_NULL = auto()      # Definitely not null
-    NULLABLE = auto()      # May or may not be null
-    DEFINITELY_NULL = auto()  # Definitely null
-    BOTTOM = auto()        # Impossible state
+    return SignDomain.negate(sign)
 
 
 def nullability_from_constant(node: ast.AST, args: List[Any]) -> Nullability:
@@ -98,512 +44,139 @@ def nullability_from_constant(node: ast.AST, args: List[Any]) -> Nullability:
             return Nullability.DEFINITELY_NULL
         else:
             return Nullability.NOT_NULL
-    elif isinstance(node, ast.Name):
-        # Check in abstract state
-        var_name = node.id
-        return _abstract_state.get_nullability(var_name)
+    elif isinstance(node, ast.Name) and node.id == "None":
+        return Nullability.DEFINITELY_NULL
     return Nullability.NULLABLE
 
 
-def nullability_join(n1: Nullability, n2: Nullability) -> Nullability:
-    """Join operation for nullability lattice."""
-    if n1 == Nullability.BOTTOM:
-        return n2
-    if n2 == Nullability.BOTTOM:
-        return n1
-    
-    if n1 == n2:
-        return n1
-    
-    # Join table:
-    # NOT_NULL ∨ DEFINITELY_NULL = NULLABLE
-    # NOT_NULL ∨ NULLABLE = NULLABLE
-    # DEFINITELY_NULL ∨ NULLABLE = NULLABLE
-    
-    if n1 == Nullability.NULLABLE or n2 == Nullability.NULLABLE:
-        return Nullability.NULLABLE
-    
-    if (n1 == Nullability.NOT_NULL and n2 == Nullability.DEFINITELY_NULL) or \
-       (n1 == Nullability.DEFINITELY_NULL and n2 == Nullability.NOT_NULL):
-        return Nullability.NULLABLE
-    
-    return Nullability.NULLABLE
+def nullability_meet(n1: Nullability, n2: Nullability) -> Nullability:
+    """Meet operation for nullability."""
+    return n1.meet(n2)
 
 
-def nullability_widen(old: Nullability, new: Nullability, iteration: int) -> Nullability:
-    """Widening for nullability domain."""
-    WIDENING_THRESHOLD = 3
-    
-    if old == new:
-        return old
-    
-    if iteration >= WIDENING_THRESHOLD:
-        # Force to NULLABLE (top of lattice)
-        return Nullability.NULLABLE
-    
-    # Allow some refinement before widening
-    return nullability_join(old, new)
-
-
-# --- Nullability Transformers ---
-
-def nullability_assign(target_var: str, value_node: ast.AST):
-    """Update nullability state for assignment."""
-    if isinstance(value_node, ast.Constant):
-        null = nullability_from_constant(value_node, [])
-        _abstract_state.set_nullability(target_var, null)
-    elif isinstance(value_node, ast.Name):
-        # Propagate nullability
-        source_null = _abstract_state.get_nullability(value_node.id)
-        _abstract_state.set_nullability(target_var, source_null)
-    elif isinstance(value_node, ast.Call):
-        # Function calls may return null
-        _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
-    elif isinstance(value_node, ast.Attribute):
-        # Accessing attribute on nullable object
-        obj_null = nullability_from_node(value_node.value)
-        if obj_null == Nullability.DEFINITELY_NULL:
-            # This would cause null pointer exception!
-            _abstract_state.set_nullability(target_var, Nullability.BOTTOM)
-        else:
-            # Attribute access might return null
-            _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
-    else:
-        # Conservative: unknown operations may produce null
-        _abstract_state.set_nullability(target_var, Nullability.NULLABLE)
-
-
-def nullability_from_node(node: ast.AST) -> Nullability:
-    """Get nullability of any node."""
-    if isinstance(node, ast.Constant):
-        return nullability_from_constant(node, [])
-    elif isinstance(node, ast.Name):
-        return _abstract_state.get_nullability(node.id)
-    else:
-        return Nullability.NULLABLE
-
-
-def check_null_dereference(node: ast.AST) -> Optional[str]:
-    """Check if node represents a null dereference."""
-    if isinstance(node, ast.Attribute):
-        obj_null = nullability_from_node(node.value)
-        if obj_null == Nullability.DEFINITELY_NULL:
-            return f"Null pointer exception: accessing attribute on null object"
-        elif obj_null == Nullability.NULLABLE:
-            return f"Potential null pointer: object might be null"
-    elif isinstance(node, ast.Subscript):
-        obj_null = nullability_from_node(node.value)
-        if obj_null == Nullability.DEFINITELY_NULL:
-            return f"Null pointer exception: indexing null object"
-        elif obj_null == Nullability.NULLABLE:
-            return f"Potential null pointer: object might be null"
-    return None
-
-
-def update_nullability_state(node: ast.AST, args: List[Any]) -> ast.AST:
-    """Update nullability state from an assignment."""
-    if isinstance(node, ast.Assign) and node.targets:
-        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            var_name = node.targets[0].id
-            nullability_assign(var_name, node.value)
-    return node
-
-
-# --- Abstract Transformers ---
-
-def abstract_add(left: Sign, right: Sign) -> Sign:
-    """Abstract transformer for addition."""
-    return sign_add(left, right)
-
-
-def abstract_multiply(left: Sign, right: Sign) -> Sign:
-    """Abstract transformer for multiplication."""
-    return sign_multiply(left, right)
-
-
-def abstract_subtract(left: Sign, right: Sign) -> Sign:
-    """Abstract transformer for subtraction (a - b = a + (-b))."""
-    return sign_add(left, sign_negate(right))
-
-
-def abstract_divide(left: Sign, right: Sign) -> Sign:
-    """Abstract transformer for division."""
-    if right == Sign.ZERO:
-        return Sign.BOTTOM  # Division by zero
-    
-    if left == Sign.BOTTOM or right == Sign.BOTTOM:
-        return Sign.BOTTOM
-    
-    if left == Sign.ZERO:
-        return Sign.ZERO
-    
-    if left == Sign.TOP or right == Sign.TOP:
-        return Sign.TOP
-    
-    # Same sign -> positive, different sign -> negative
-    if left == right or (left == Sign.POSITIVE and right == Sign.POSITIVE) or \
-       (left == Sign.NEGATIVE and right == Sign.NEGATIVE):
-        return Sign.POSITIVE
-    else:
-        return Sign.NEGATIVE
-
-
-# --- Abstract State Management ---
-
-class AbstractState:
-    """Tracks abstract properties of variables."""
-    def __init__(self):
-        self.sign_state = {}
-        self.nullability_state = {}
-    
-    def get_sign(self, var_name: str) -> Sign:
-        """Get sign property of a variable."""
-        return self.sign_state.get(var_name, Sign.TOP)
-    
-    def set_sign(self, var_name: str, sign: Sign):
-        """Set sign property of a variable."""
-        self.sign_state[var_name] = sign
-    
-    def get_nullability(self, var_name: str) -> Nullability:
-        """Get nullability property of a variable."""
-        return self.nullability_state.get(var_name, Nullability.NULLABLE)
-    
-    def set_nullability(self, var_name: str, null: Nullability):
-        """Set nullability property of a variable."""
-        self.nullability_state[var_name] = null
-    
-    def join(self, other: 'AbstractState') -> 'AbstractState':
-        """Join two abstract states (for control flow merge)."""
-        result = AbstractState()
-        
-        # Join sign states
-        all_vars = set(self.sign_state.keys()) | set(other.sign_state.keys())
-        for var in all_vars:
-            s1 = self.get_sign(var)
-            s2 = other.get_sign(var)
-            # Simple join: if they differ, go to TOP
-            if s1 == s2:
-                result.set_sign(var, s1)
-            else:
-                result.set_sign(var, Sign.TOP)
-        
-        # Join nullability states
-        all_vars = set(self.nullability_state.keys()) | set(other.nullability_state.keys())
-        for var in all_vars:
-            n1 = self.get_nullability(var)
-            n2 = other.get_nullability(var)
-            result.set_nullability(var, nullability_join(n1, n2))
-        
-        return result
-
-
-# Global abstract state for analysis
+# Global state for backward compatibility
 _abstract_state = AbstractState()
 
 
-def reset_abstract_state(root: ast.AST, args: List[Any]) -> ast.AST:
-    """Reset the abstract state for fresh analysis."""
+def reset_abstract_state():
+    """Reset global abstract state."""
     global _abstract_state
     _abstract_state = AbstractState()
-    return root
 
 
-def get_sign_state(node: ast.AST, args: List[Any]) -> Sign:
-    """Get sign property of a variable from a Name node."""
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-        return _abstract_state.get_sign(node.id)
-    return Sign.TOP
+def update_sign_state(var: str, sign: Sign):
+    """Update sign in global state."""
+    _abstract_state.update_sign(var, sign)
 
 
-def update_sign_state(node: ast.AST, args: List[Any]) -> ast.AST:
-    """Update sign state from an assignment."""
-    if isinstance(node, ast.Assign) and node.targets:
-        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            var_name = node.targets[0].id
-            
-            # Analyze the assigned value
-            if isinstance(node.value, ast.Constant):
-                sign = sign_from_constant(node.value, [])
-                _abstract_state.set_sign(var_name, sign)
-            elif isinstance(node.value, ast.UnaryOp) and isinstance(node.value.op, ast.USub):
-                # Handle negative constants like -3
-                if isinstance(node.value.operand, ast.Constant):
-                    operand_sign = sign_from_constant(node.value.operand, [])
-                    sign = sign_negate(operand_sign)
-                    _abstract_state.set_sign(var_name, sign)
-                else:
-                    _abstract_state.set_sign(var_name, Sign.TOP)
-            elif isinstance(node.value, ast.Name):
-                # Propagate sign from another variable
-                source_sign = _abstract_state.get_sign(node.value.id)
-                _abstract_state.set_sign(var_name, source_sign)
-            elif isinstance(node.value, ast.BinOp):
-                # Analyze binary operations
-                sign = abstract_sign_binop(node.value, [])
-                _abstract_state.set_sign(var_name, sign)
-            else:
-                # Complex expression - mark as TOP for now
-                _abstract_state.set_sign(var_name, Sign.TOP)
-    
-    return node
+def update_nullability_state(var: str, null: Nullability):
+    """Update nullability in global state."""
+    _abstract_state.update_nullability(var, null)
 
 
-def abstract_sign_binop(node: ast.AST, args: List[Any]) -> Sign:
-    """Compute abstract sign of a binary operation."""
-    if not isinstance(node, ast.BinOp):
-        return Sign.TOP
-    
-    # Get signs of operands
-    left_sign = Sign.TOP
-    right_sign = Sign.TOP
-    
-    if isinstance(node.left, ast.Constant):
-        left_sign = sign_from_constant(node.left, [])
-    elif isinstance(node.left, ast.Name):
-        left_sign = _abstract_state.get_sign(node.left.id)
-    
-    if isinstance(node.right, ast.Constant):
-        right_sign = sign_from_constant(node.right, [])
-    elif isinstance(node.right, ast.Name):
-        right_sign = _abstract_state.get_sign(node.right.id)
-    
-    # Apply abstract operation
-    if isinstance(node.op, ast.Add):
-        return sign_add(left_sign, right_sign)
-    elif isinstance(node.op, ast.Mult):
-        return sign_multiply(left_sign, right_sign)
-    elif isinstance(node.op, ast.Sub):
-        # a - b is like a + (-b)
-        return sign_add(left_sign, sign_negate(right_sign))
-    
-    return Sign.TOP
+def get_sign_state(var: str) -> Optional[Sign]:
+    """Get sign from global state."""
+    return _abstract_state.get_sign(var)
 
 
-def is_definitely_positive(node: ast.AST, args: List[Any]) -> bool:
-    """Check if expression is definitely positive."""
+def get_nullability_state(var: str) -> Optional[Nullability]:
+    """Get nullability from global state."""
+    return _abstract_state.get_nullability(var)
+
+
+# Analysis functions
+
+def analyze_sign(node: ast.AST) -> Optional[Sign]:
+    """Analyze AST node to determine sign."""
     if isinstance(node, ast.Constant):
-        sign = sign_from_constant(node, [])
-        return sign == Sign.POSITIVE
-    elif isinstance(node, ast.Name):
-        sign = _abstract_state.get_sign(node.id)
-        return sign == Sign.POSITIVE
+        if isinstance(node.value, (int, float)):
+            return SignDomain.from_constant(node.value)
+    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner_sign = analyze_sign(node.operand)
+        if inner_sign:
+            return SignDomain.negate(inner_sign)
     elif isinstance(node, ast.BinOp):
-        sign = abstract_sign_binop(node, [])
-        return sign == Sign.POSITIVE
-    return False
-
-
-def is_definitely_negative(node: ast.AST, args: List[Any]) -> bool:
-    """Check if expression is definitely negative."""
-    if isinstance(node, ast.Constant):
-        sign = sign_from_constant(node, [])
-        return sign == Sign.NEGATIVE
+        left_sign = analyze_sign(node.left)
+        right_sign = analyze_sign(node.right)
+        if left_sign and right_sign:
+            if isinstance(node.op, ast.Add):
+                return SignDomain.add(left_sign, right_sign)
+            elif isinstance(node.op, ast.Mult):
+                return SignDomain.multiply(left_sign, right_sign)
     elif isinstance(node, ast.Name):
-        sign = _abstract_state.get_sign(node.id)
-        return sign == Sign.NEGATIVE
-    elif isinstance(node, ast.BinOp):
-        sign = abstract_sign_binop(node, [])
-        return sign == Sign.NEGATIVE
-    return False
+        return get_sign_state(node.id)
+    
+    return None
 
 
-def is_definitely_zero(node: ast.AST, args: List[Any]) -> bool:
-    """Check if expression is definitely zero."""
-    if isinstance(node, ast.Constant):
-        sign = sign_from_constant(node, [])
-        return sign == Sign.ZERO
-    elif isinstance(node, ast.Name):
-        sign = _abstract_state.get_sign(node.id)
-        return sign == Sign.ZERO
-    return False
+def check_null_dereference(node: ast.AST) -> List[str]:
+    """Check for potential null dereferences."""
+    errors = []
+    
+    class NullChecker(ast.NodeVisitor):
+        def visit_Attribute(self, node):
+            # Check obj.attr access
+            if isinstance(node.value, ast.Name):
+                null_state = get_nullability_state(node.value.id)
+                if null_state == Nullability.DEFINITELY_NULL:
+                    errors.append(f"Null pointer exception: {node.value.id} is null")
+                elif null_state == Nullability.NULLABLE:
+                    errors.append(f"Potential null pointer: {node.value.id} may be null")
+            self.generic_visit(node)
+        
+        def visit_Subscript(self, node):
+            # Check obj[index] access
+            if isinstance(node.value, ast.Name):
+                null_state = get_nullability_state(node.value.id)
+                if null_state == Nullability.DEFINITELY_NULL:
+                    errors.append(f"Null pointer exception: {node.value.id} is null")
+            self.generic_visit(node)
+    
+    NullChecker().visit(node)
+    return errors
 
 
-# --- Proof Verification ---
-
-def verify_sign_property(var_name: str, expected_sign: Sign) -> bool:
-    """Verify that a variable has the expected sign property."""
-    actual_sign = _abstract_state.get_sign(var_name)
-    return actual_sign == expected_sign
-
-
-def prove_property(tree: ast.AST, property_spec: Dict[str, Any]) -> Dict[str, bool]:
+def prove_property(tree: ast.AST, initial_state: Dict[str, Sign]) -> Dict[str, bool]:
     """
-    Prove properties about variables at the end of program execution.
-    property_spec: Dict mapping variable names to expected properties
-    Returns: Dict mapping variable names to verification results
+    Prove sign properties about variables.
+    Returns dict mapping variable names to whether property holds.
     """
-    # Reset and analyze
-    reset_abstract_state(tree, [])
+    reset_abstract_state()
     
-    # Perform abstract interpretation
-    class AbstractInterpreter(ast.NodeVisitor):
-        def visit_Module(self, node):
-            for stmt in node.body:
-                if isinstance(stmt, ast.Assign):
-                    update_sign_state(stmt, [])
-                self.visit(stmt)
+    # Set initial state
+    for var, sign in initial_state.items():
+        update_sign_state(var, sign)
     
-    interpreter = AbstractInterpreter()
-    interpreter.visit(tree)
+    # Simple interpreter for sign analysis
+    class SignProver(ast.NodeVisitor):
+        def visit_Assign(self, node):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                var_name = node.targets[0].id
+                sign = analyze_sign(node.value)
+                if sign:
+                    update_sign_state(var_name, sign)
+            self.generic_visit(node)
     
-    # Verify properties
-    results = {}
-    for var_name, expected_prop in property_spec.items():
-        if isinstance(expected_prop, Sign):
-            results[var_name] = verify_sign_property(var_name, expected_prop)
-        else:
-            results[var_name] = False
+    SignProver().visit(tree)
     
-    return results
+    # Return which variables have definite signs
+    result = {}
+    for var in _abstract_state.sign_state:
+        sign = _abstract_state.sign_state[var]
+        result[var] = sign in [Sign.POSITIVE, Sign.NEGATIVE, Sign.ZERO]
+    
+    return result
 
 
-def get_proof_explanation(var_name: str) -> str:
-    """Generate explanation for how a property was proven."""
-    sign = _abstract_state.get_sign(var_name)
-    if sign == Sign.TOP:
-        return f"{var_name} could have any sign (insufficient information)"
-    elif sign == Sign.BOTTOM:
-        return f"{var_name} has an impossible value (error in program)"
-    else:
-        return f"{var_name} is proven to be {sign.name}"
-
-
-# --- Create Transformation objects ---
-
-ABSTRACT_DOMAIN_PRIMITIVES = [
-    # Sign analysis
-    Transformation(
-        name="SIGN_FROM_CONSTANT",
-        operation=lambda n, a: sign_from_constant(n, a),
-        input_type="ast",
-        output_type="sign",
-        num_args=0
-    ),
-    Transformation(
-        name="GET_SIGN_STATE",
-        operation=lambda n, a: get_sign_state(n, a),
-        input_type="ast",
-        output_type="sign",
-        num_args=0
-    ),
-    Transformation(
-        name="UPDATE_SIGN_STATE",
-        operation=update_sign_state,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
-    Transformation(
-        name="ABSTRACT_SIGN_BINOP",
-        operation=lambda n, a: abstract_sign_binop(n, a),
-        input_type="ast",
-        output_type="sign",
-        num_args=0
-    ),
-    Transformation(
-        name="IS_DEFINITELY_POSITIVE",
-        operation=is_definitely_positive,
-        input_type="ast",
-        output_type="boolean",
-        num_args=0
-    ),
-    Transformation(
-        name="IS_DEFINITELY_NEGATIVE",
-        operation=is_definitely_negative,
-        input_type="ast",
-        output_type="boolean",
-        num_args=0
-    ),
-    Transformation(
-        name="IS_DEFINITELY_ZERO",
-        operation=is_definitely_zero,
-        input_type="ast",
-        output_type="boolean",
-        num_args=0
-    ),
-    
-    # State management
-    Transformation(
-        name="RESET_ABSTRACT_STATE",
-        operation=reset_abstract_state,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
-    
-    # Nullability analysis
-    Transformation(
-        name="NULLABILITY_FROM_CONSTANT",
-        operation=lambda n, a: nullability_from_constant(n, a),
-        input_type="ast",
-        output_type="nullability",
-        num_args=0
-    ),
-    Transformation(
-        name="UPDATE_NULLABILITY_STATE",
-        operation=update_nullability_state,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
-    Transformation(
-        name="CHECK_NULL_DEREFERENCE",
-        operation=lambda n, a: check_null_dereference(n),
-        input_type="ast",
-        output_type="optional_string",
-        num_args=0
-    ),
-    Transformation(
-        name="NULLABILITY_JOIN",
-        operation=lambda n1, n2: nullability_join(n1, n2),
-        input_type="nullability_pair",
-        output_type="nullability",
-        num_args=2
-    ),
-    Transformation(
-        name="NULLABILITY_WIDEN",
-        operation=lambda old, new, iter: nullability_widen(old, new, iter),
-        input_type="nullability_pair_with_iter",
-        output_type="nullability",
-        num_args=3
-    ),
-    
-    # Abstract transformers
-    Transformation(
-        name="ABSTRACT_ADD",
-        operation=lambda left, right: abstract_add(left, right),
-        input_type="sign_pair",
-        output_type="sign",
-        num_args=2
-    ),
-    Transformation(
-        name="ABSTRACT_MULTIPLY", 
-        operation=lambda left, right: abstract_multiply(left, right),
-        input_type="sign_pair",
-        output_type="sign",
-        num_args=2
-    ),
-    Transformation(
-        name="ABSTRACT_SUBTRACT",
-        operation=lambda left, right: abstract_subtract(left, right),
-        input_type="sign_pair",
-        output_type="sign",
-        num_args=2
-    ),
-    Transformation(
-        name="ABSTRACT_DIVIDE",
-        operation=lambda left, right: abstract_divide(left, right),
-        input_type="sign_pair",
-        output_type="sign",
-        num_args=2
-    ),
-    
-    # Proof verification
-    Transformation(
-        name="PROVE_PROPERTY",
-        operation=lambda tree, spec: prove_property(tree, spec),
-        input_type="ast_and_spec",
-        output_type="proof_results",
-        num_args=2
-    ),
+# Re-export key items
+__all__ = [
+    'AbstractDomain',
+    'Sign', 'SignDomain',
+    'Nullability',
+    'AbstractState',
+    'sign_add', 'sign_multiply', 'sign_negate',
+    'nullability_join', 'nullability_meet',
+    'analyze_sign', 'check_null_dereference', 'prove_property',
+    'reset_abstract_state',
+    'update_sign_state', 'update_nullability_state',
 ]
