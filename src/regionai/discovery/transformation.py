@@ -354,6 +354,27 @@ PRIMITIVE_OPERATIONS: List[Transformation] = [
     ),
 ]
 
+# --- Separate primitive lists by category ---
+# These are subsets of PRIMITIVE_OPERATIONS for specific use cases
+
+# Structured data primitives work with dictionaries and lists of dictionaries
+STRUCTURED_DATA_PRIMITIVES: List[Transformation] = [
+    t for t in PRIMITIVE_OPERATIONS 
+    if t.input_type in ['dict_list', 'dict'] or t.output_type in ['dict_list', 'dict']
+]
+
+# Basic arithmetic and tensor operations
+ARITHMETIC_PRIMITIVES: List[Transformation] = [
+    t for t in PRIMITIVE_OPERATIONS
+    if t.name in ['ADD_ONE', 'SUBTRACT_ONE', 'ADD_TENSOR', 'MULTIPLY', 'SUM', 'COUNT']
+]
+
+# Control flow primitives (for composition with conditionals)
+CONTROL_PRIMITIVES: List[Transformation] = [
+    t for t in PRIMITIVE_OPERATIONS
+    if t.output_type == 'boolean' or t.name in ['HAS_KEY', 'VALUE_EQUALS']
+]
+
 
 # --- Heuristic Metadata ---
 # This metadata will guide the search engine to be more intelligent.

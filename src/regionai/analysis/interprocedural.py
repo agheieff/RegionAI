@@ -102,6 +102,10 @@ class InterproceduralAnalyzer:
             cfg, self.call_graph, self.summary_computer, self.errors, self.warnings
         )
         
+        # Copy existing summaries to the analyzer's cache
+        if hasattr(self.summary_computer, 'summaries'):
+            analyzer.summaries.update(self.summary_computer.summaries)
+        
         # Run analysis
         block_states = analyzer.analyze(initial_state)
         
@@ -116,6 +120,9 @@ class InterproceduralAnalyzer:
         summary = self.summary_computer.compute_summary(
             func_ast, initial_state, exit_state
         )
+        
+        # Store the summary in the analyzer's cache for future calls
+        analyzer.summaries[func_name] = summary
     
     def _check_global_errors(self):
         """Check for errors that span multiple functions."""
@@ -152,6 +159,8 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         self.summary_computer = summary_computer
         self.errors = errors
         self.warnings = warnings
+        # Cache for function summaries
+        self.summaries: Dict[str, FunctionSummary] = {}
     
     def _analyze_block(self, block, input_state):
         """Override to handle function calls."""
@@ -179,14 +188,16 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         if isinstance(call.func, ast.Name):
             callee_name = call.func.id
             
-            # Get function summary if available
-            summary = self.summary_computer.summaries.get(callee_name)
-            
-            if summary:
-                # Apply summary to update state
+            # First check our local cache
+            if callee_name in self.summaries:
+                summary = self.summaries[callee_name]
+                self._apply_function_summary(assign_stmt, summary, state)
+            # Then check the summary computer's cache
+            elif hasattr(self.summary_computer, 'summaries') and callee_name in self.summary_computer.summaries:
+                summary = self.summary_computer.summaries[callee_name]
                 self._apply_function_summary(assign_stmt, summary, state)
             else:
-                # Conservative: function might return anything
+                # Conservative: function might return anything (TOP state)
                 if assign_stmt.targets:
                     target = assign_stmt.targets[0]
                     if isinstance(target, ast.Name):

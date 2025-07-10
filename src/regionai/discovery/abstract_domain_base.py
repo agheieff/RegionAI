@@ -377,13 +377,25 @@ class AbstractState:
         """Update sign of variable."""
         self.sign_state[var] = sign
     
+    def set_sign(self, var: str, sign: Sign):
+        """Alias for update_sign for compatibility."""
+        self.update_sign(var, sign)
+    
     def update_nullability(self, var: str, null: Nullability):
         """Update nullability of variable."""
         self.null_state[var] = null
     
+    def set_nullability(self, var: str, null: Nullability):
+        """Alias for update_nullability for compatibility."""
+        self.update_nullability(var, null)
+    
     def update_range(self, var: str, range: Range):
         """Update range of variable."""
         self.range_state[var] = range
+    
+    def set_range(self, var: str, range: Range):
+        """Alias for update_range for compatibility."""
+        self.update_range(var, range)
     
     def join(self, other: 'AbstractState') -> 'AbstractState':
         """Join two abstract states."""

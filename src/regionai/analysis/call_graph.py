@@ -51,10 +51,7 @@ class CallGraph:
         
     def add_call(self, caller: str, callee: str, call_node: ast.Call, line: int):
         """Add a function call relationship."""
-        if caller in self.functions and callee in self.functions:
-            self.functions[caller].calls.add(callee)
-            self.functions[callee].called_by.add(caller)
-            
+        # Store the call site regardless
         call_site = CallSite(
             caller=caller,
             callee=callee,
@@ -63,6 +60,21 @@ class CallGraph:
             arguments=call_node.args
         )
         self.call_sites.append(call_site)
+        
+        # If we know about the caller, record the call
+        if caller in self.functions:
+            self.functions[caller].calls.add(callee)
+        
+        # If we know about the callee, record who calls it  
+        if callee in self.functions:
+            self.functions[callee].called_by.add(caller)
+    
+    def resolve_calls(self):
+        """Resolve all call relationships after all functions are discovered."""
+        for call_site in self.call_sites:
+            if call_site.caller in self.functions and call_site.callee in self.functions:
+                self.functions[call_site.caller].calls.add(call_site.callee)
+                self.functions[call_site.callee].called_by.add(call_site.caller)
     
     def identify_entry_points(self):
         """Identify functions that are not called by any other function."""
@@ -91,7 +103,7 @@ class CallGraph:
                 if callee == end:
                     return path + [callee]
                     
-                if callee not in visited:
+                if callee not in visited and callee in self.functions:
                     visited.add(callee)
                     queue.append((callee, path + [callee]))
         
@@ -130,23 +142,24 @@ class CallGraph:
         Return functions in topological order (callees before callers).
         Useful for bottom-up analysis.
         """
-        # Count incoming edges (called_by)
-        in_degree = {}
+        # For bottom-up analysis, we want to process leaf functions first
+        # So we count outgoing edges (calls) not incoming edges
+        out_degree = {}
         for func_name in self.functions:
-            in_degree[func_name] = len(self.functions[func_name].called_by)
+            out_degree[func_name] = len(self.functions[func_name].calls)
         
-        # Start with functions that have no callers
-        queue = [func for func, degree in in_degree.items() if degree == 0]
+        # Start with functions that call no other functions (leaves)
+        queue = [func for func, degree in out_degree.items() if degree == 0]
         result = []
         
         while queue:
             current = queue.pop(0)
             result.append(current)
             
-            # Reduce in-degree for functions that call current
+            # Reduce out-degree for functions that call current
             for caller in self.functions[current].called_by:
-                in_degree[caller] -= 1
-                if in_degree[caller] == 0:
+                out_degree[caller] -= 1
+                if out_degree[caller] == 0:
                     queue.append(caller)
         
         # If we didn't process all functions, there's a cycle
@@ -170,6 +183,7 @@ class CallGraphBuilder(ast.NodeVisitor):
     def build(self, tree: ast.AST) -> CallGraph:
         """Build call graph from AST."""
         self.visit(tree)
+        self.call_graph.resolve_calls()  # Resolve all calls after visiting
         self.call_graph.identify_entry_points()
         return self.call_graph
     

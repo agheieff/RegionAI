@@ -94,13 +94,15 @@ class TestDay19_20Features:
                 name="double1",
                 problem_type="transformation",
                 input_data=torch.tensor([1, 2, 3]),
-                output_data=torch.tensor([2, 4, 6])
+                output_data=torch.tensor([2, 4, 6]),
+                description="Double each element"
             ),
             Problem(
                 name="double2",
                 problem_type="transformation",
                 input_data=torch.tensor([4, 5]),
-                output_data=torch.tensor([8, 10])
+                output_data=torch.tensor([8, 10]),
+                description="Double each element"
             )
         ]
         
@@ -129,7 +131,8 @@ class TestDay21_23Features:
                 name="conditional",
                 problem_type="transformation",
                 input_data=[{"type": "A", "value": 10}, {"type": "B", "value": 10}],
-                output_data=[{"type": "A", "value": 20}, {"type": "B", "value": 15}]
+                output_data=[{"type": "A", "value": 20}, {"type": "B", "value": 15}],
+                description="Apply different multipliers based on type"
             )
         ]
         
@@ -147,7 +150,8 @@ class TestDay21_23Features:
                 name="compose1",
                 problem_type="transformation", 
                 input_data=torch.tensor([1, 2, 3]),
-                output_data=torch.tensor([4, 6, 8])  # (x+1)*2
+                output_data=torch.tensor([4, 6, 8]),  # (x+1)*2
+                description="Add 1 then multiply by 2"
             )
         ]
         

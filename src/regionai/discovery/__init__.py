@@ -12,16 +12,17 @@ from .transformation import (
     TransformationSequence,
     ConditionalTransformation,
     ForEachTransformation,
-    PRIMITIVE_OPERATIONS
+    PRIMITIVE_OPERATIONS,
+    STRUCTURED_DATA_PRIMITIVES,
+    ARITHMETIC_PRIMITIVES,
+    CONTROL_PRIMITIVES
 )
 
 # Create aliases for backward compatibility
 PRIMITIVE_TRANSFORMATIONS = PRIMITIVE_OPERATIONS
 
-# Placeholder definitions for missing imports
-# These should be populated from the actual implementations
-STRUCTURED_DATA_PRIMITIVES = []
-AST_PRIMITIVES = []
+# Import AST primitives
+from .ast_primitives import AST_PRIMITIVES
 
 # Abstract domains
 from .abstract_domains import (
@@ -50,6 +51,8 @@ __all__ = [
     "PRIMITIVE_OPERATIONS",
     "PRIMITIVE_TRANSFORMATIONS",
     "STRUCTURED_DATA_PRIMITIVES",
+    "ARITHMETIC_PRIMITIVES",
+    "CONTROL_PRIMITIVES",
     "AST_PRIMITIVES",
     
     # Abstract domains

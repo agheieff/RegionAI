@@ -31,7 +31,9 @@ class AnalysisState:
         )
         # Copy sign states
         new_state.abstract_state.sign_state = dict(self.abstract_state.sign_state)
-        new_state.abstract_state.nullability_state = dict(self.abstract_state.nullability_state)
+        new_state.abstract_state.null_state = dict(self.abstract_state.null_state)
+        if hasattr(self.abstract_state, 'range_state'):
+            new_state.abstract_state.range_state = dict(self.abstract_state.range_state)
         return new_state
     
     def equals(self, other: 'AnalysisState') -> bool:
@@ -138,7 +140,7 @@ class FixpointAnalyzer:
             )
         
         # Worklist algorithm
-        worklist = [self.cfg.entry_block] if self.cfg.entry_block else []
+        worklist = [self.cfg.entry_block] if self.cfg.entry_block is not None else []
         iteration = 0
         
         while worklist and iteration < self.max_iterations:

@@ -6,9 +6,11 @@ import torch
 import ast
 from typing import List, Dict, Any
 
-from src.regionai.discovery.transformation import (
-    Transformation, PRIMITIVE_TRANSFORMATIONS,
-    STRUCTURED_DATA_PRIMITIVES, AST_PRIMITIVES
+from src.regionai.discovery.transformation import Transformation
+from src.regionai.discovery import (
+    PRIMITIVE_TRANSFORMATIONS,
+    STRUCTURED_DATA_PRIMITIVES,
+    AST_PRIMITIVES
 )
 from src.regionai.discovery.discovery import DiscoveryEngine
 from src.regionai.data.problem import Problem
@@ -88,12 +90,18 @@ class TestTransformationDiscoveryPipeline:
         # Create problems that need SUM
         problems = [
             Problem(
+                name="sum_test_1",
+                problem_type="transformation",
                 input_data=torch.tensor([1, 2, 3]),
-                output_data=6
+                output_data=torch.tensor([6]),
+                description="Sum elements"
             ),
             Problem(
+                name="sum_test_2",
+                problem_type="transformation",
                 input_data=torch.tensor([4, 5]),
-                output_data=9
+                output_data=torch.tensor([9]),
+                description="Sum elements"
             )
         ]
         
@@ -109,12 +117,18 @@ class TestTransformationDiscoveryPipeline:
         # Problems requiring FILTER → MAP → SUM
         problems = [
             Problem(
+                name="filter_sum_1",
+                problem_type="transformation",
                 input_data=[{"v": 1}, {"v": 2}, {"v": 3}, {"v": 4}],
-                output_data=7  # Sum of values > 2
+                output_data=torch.tensor([7]),  # Sum of values > 2
+                description="Filter and sum values > 2"
             ),
             Problem(
+                name="filter_sum_2",
+                problem_type="transformation",
                 input_data=[{"v": 5}, {"v": 1}, {"v": 6}],
-                output_data=11  # Sum of values > 2
+                output_data=torch.tensor([11]),  # Sum of values > 2
+                description="Filter and sum values > 2"
             )
         ]
         
