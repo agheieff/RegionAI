@@ -2,8 +2,48 @@
 Function summary system for interprocedural analysis.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Set, List
-from ..discovery.abstract_domains import AbstractState, Sign, Nullability, Range
+from typing import Dict, Optional, Set, List, Tuple, Any
+from ..discovery.abstract_domains import AbstractState, Sign, Nullability
+from ..discovery.range_domain import Range
+
+
+@dataclass(frozen=True)
+class CallContext:
+    """
+    Represents the context of a function call for context-sensitive analysis.
+    
+    The context includes the function name and the abstract states of arguments,
+    allowing different summaries for different calling contexts.
+    """
+    function_name: str
+    parameter_states: Tuple[Any, ...]  # Using tuple for hashability
+    
+    @classmethod
+    def from_call(cls, function_name: str, arg_states: List[AbstractState]) -> 'CallContext':
+        """
+        Create a CallContext from function name and argument states.
+        
+        We need to convert AbstractState objects to a hashable representation.
+        """
+        # Convert each AbstractState to a hashable tuple representation
+        hashable_states = []
+        for state in arg_states:
+            # Extract key properties that define the state
+            state_tuple = (
+                # Sign states
+                tuple(sorted((k, v) for k, v in getattr(state, 'sign_state', {}).items())),
+                # Nullability states  
+                tuple(sorted((k, v) for k, v in getattr(state, 'null_state', {}).items())),
+                # Range states (if available)
+                tuple(sorted((k, str(v)) for k, v in getattr(state, 'range_state', {}).items()))
+            )
+            hashable_states.append(state_tuple)
+        
+        return CallContext(function_name, tuple(hashable_states))
+    
+    def __str__(self) -> str:
+        """Human-readable representation."""
+        return f"{self.function_name}{self.parameter_states}"
 
 
 @dataclass
@@ -197,9 +237,9 @@ class SummaryComputer:
 
 # Context-sensitive extension for more precise analysis
 @dataclass
-class CallContext:
+class CallSiteContext:
     """
-    Represents the context of a function call for context-sensitive analysis.
+    Represents the context of a specific call site for context-sensitive analysis.
     """
     caller: str
     call_site_id: int
@@ -221,11 +261,11 @@ class ContextSensitiveSummaryCache:
     
     def __init__(self):
         # Maps (function_name, context) -> summary
-        self.context_summaries: Dict[tuple[str, CallContext], FunctionSummary] = {}
+        self.context_summaries: Dict[tuple[str, CallSiteContext], FunctionSummary] = {}
         # Fallback context-insensitive summaries
         self.default_summaries: Dict[str, FunctionSummary] = {}
     
-    def add_context_summary(self, func_name: str, context: CallContext, summary: FunctionSummary):
+    def add_context_summary(self, func_name: str, context: CallSiteContext, summary: FunctionSummary):
         """Add a context-specific summary."""
         self.context_summaries[(func_name, context)] = summary
     
@@ -233,7 +273,7 @@ class ContextSensitiveSummaryCache:
         """Add a context-insensitive summary."""
         self.default_summaries[func_name] = summary
     
-    def get_summary(self, func_name: str, context: Optional[CallContext] = None) -> Optional[FunctionSummary]:
+    def get_summary(self, func_name: str, context: Optional[CallSiteContext] = None) -> Optional[FunctionSummary]:
         """Get the most specific summary available."""
         # Try context-specific first
         if context and (func_name, context) in self.context_summaries:
