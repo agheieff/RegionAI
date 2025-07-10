@@ -11,8 +11,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from .discovery_engine import UnifiedDiscoveryEngine, SequentialDiscovery
-from src.regionai.data.problem import Problem
-from src.regionai.geometry.region import RegionND
+from ..data.problem import Problem
+from ..geometry.region import RegionND
 
 
 # Global engine instance

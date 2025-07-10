@@ -13,6 +13,8 @@ from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
 from ..semantic.fingerprint import SemanticFingerprint, Behavior
 from ..language.trainer import LanguageBridgeTrainer
 from ..language.projection_model import ModelCheckpoint
+from ..knowledge.graph import KnowledgeGraph, Concept
+from ..knowledge.discovery import ConceptDiscoverer
 
 
 def analyze_code(code: str, include_source: bool = True) -> AnalysisResult:
@@ -554,3 +556,271 @@ def evaluate_language_model(semantic_db: SemanticDB,
         'n_samples': n_samples,
         'per_behavior_metrics': behavior_metrics
     }
+
+
+def build_knowledge_graph(code: str, include_source: bool = True) -> KnowledgeGraph:
+    """
+    Build a knowledge graph of real-world concepts from code analysis.
+    
+    This function orchestrates the complete process of discovering concepts:
+    1. Analyzes the code to build a SemanticDB
+    2. Applies concept discovery heuristics
+    3. Returns a populated KnowledgeGraph
+    
+    Args:
+        code: Python source code to analyze
+        include_source: Whether to include source for documentation extraction
+        
+    Returns:
+        KnowledgeGraph containing discovered concepts and relationships
+    """
+    # First, perform semantic analysis
+    print("Performing semantic analysis...")
+    result = analyze_code(code, include_source)
+    
+    if not result.semantic_db:
+        print("Warning: No semantic information found")
+        return KnowledgeGraph()
+    
+    print(f"Analyzed {len(result.semantic_db._entries)} functions")
+    
+    # Discover concepts from the semantic database
+    print("Discovering concepts...")
+    discoverer = ConceptDiscoverer(result.semantic_db)
+    knowledge_graph = discoverer.discover_concepts()
+    
+    # Print discovery statistics
+    print(f"Discovered {len(knowledge_graph)} concepts")
+    print(f"Found {len(knowledge_graph.graph.edges())} relationships")
+    
+    return knowledge_graph
+
+
+def build_knowledge_graph_from_semantic_db(semantic_db: SemanticDB) -> KnowledgeGraph:
+    """
+    Build a knowledge graph from an existing SemanticDB.
+    
+    Useful when you already have analyzed code and want to discover concepts.
+    
+    Args:
+        semantic_db: Pre-analyzed semantic database
+        
+    Returns:
+        KnowledgeGraph with discovered concepts
+    """
+    discoverer = ConceptDiscoverer(semantic_db)
+    return discoverer.discover_concepts()
+
+
+def discover_domain_model(code: str, output_file: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Discover the domain model (concepts and relationships) from code.
+    
+    This provides a comprehensive analysis including:
+    - Discovered concepts with confidence scores
+    - Relationships between concepts
+    - Discovery report explaining how concepts were found
+    
+    Args:
+        code: Python source code to analyze
+        output_file: Optional file path to save the knowledge graph JSON
+        
+    Returns:
+        Dictionary containing:
+        - knowledge_graph: The KnowledgeGraph object
+        - concepts: List of discovered concepts with metadata
+        - relationships: List of discovered relationships
+        - discovery_report: Human-readable discovery report
+        - visualization: Text visualization of the graph
+    """
+    # Build the knowledge graph
+    kg = build_knowledge_graph(code)
+    
+    # Extract information for the result
+    concepts = []
+    for concept in kg.get_concepts():
+        metadata = kg.get_concept_metadata(concept)
+        concepts.append({
+            'name': concept,
+            'discovery_method': metadata.discovery_method if metadata else 'unknown',
+            'confidence': metadata.confidence if metadata else 0.0,
+            'source_functions': metadata.source_functions if metadata else []
+        })
+    
+    relationships = []
+    for concept in kg.get_concepts():
+        for source, target, relation in kg.get_relations(concept):
+            if source == concept:  # Avoid duplicates
+                relationships.append({
+                    'source': source,
+                    'target': target,
+                    'relation': relation
+                })
+    
+    # Generate discovery report
+    result = analyze_code(code)
+    discoverer = ConceptDiscoverer(result.semantic_db)
+    discoverer.discover_concepts()  # Re-run to populate internal state
+    discovery_report = discoverer.generate_discovery_report()
+    
+    # Save to file if requested
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(kg.to_json())
+        print(f"Knowledge graph saved to: {output_file}")
+    
+    return {
+        'knowledge_graph': kg,
+        'concepts': sorted(concepts, key=lambda c: c['confidence'], reverse=True),
+        'relationships': relationships,
+        'discovery_report': discovery_report,
+        'visualization': kg.visualize()
+    }
+
+
+def find_concept_functions(code: str, concept_name: str) -> Dict[str, List[str]]:
+    """
+    Find all functions related to a specific concept.
+    
+    Args:
+        code: Python source code to analyze
+        concept_name: Name of the concept to search for (e.g., "User", "Product")
+        
+    Returns:
+        Dictionary mapping operation types to function names:
+        - create: Functions that create the concept
+        - read: Functions that read/retrieve the concept
+        - update: Functions that update the concept
+        - delete: Functions that delete the concept
+        - other: Other related functions
+    """
+    # Analyze and discover concepts
+    result = analyze_code(code)
+    discoverer = ConceptDiscoverer(result.semantic_db)
+    kg = discoverer.discover_concepts()
+    
+    # Check if concept exists
+    concept = Concept(concept_name.title())
+    if concept not in kg:
+        # Try to find similar concepts
+        similar = [c for c in kg.get_concepts() 
+                  if concept_name.lower() in c.lower()]
+        if similar:
+            concept = similar[0]
+        else:
+            return {
+                'create': [],
+                'read': [],
+                'update': [],
+                'delete': [],
+                'other': []
+            }
+    
+    # Get metadata to find source functions
+    metadata = kg.get_concept_metadata(concept)
+    if not metadata:
+        return {
+            'create': [],
+            'read': [],
+            'update': [],
+            'delete': [],
+            'other': []
+        }
+    
+    # Organize functions by operation type
+    organized = {
+        'create': [],
+        'read': [],
+        'update': [],
+        'delete': [],
+        'other': []
+    }
+    
+    # Check if discovered through CRUD pattern
+    for pattern in discoverer._discovered_patterns:
+        if pattern.concept_name == concept:
+            organized['create'] = pattern.create_functions
+            organized['read'] = pattern.read_functions
+            organized['update'] = pattern.update_functions
+            organized['delete'] = pattern.delete_functions
+            break
+    
+    # Add any other functions from metadata
+    for func in metadata.source_functions:
+        found = False
+        for op_type in ['create', 'read', 'update', 'delete']:
+            if func in organized[op_type]:
+                found = True
+                break
+        if not found:
+            organized['other'].append(func)
+    
+    return organized
+
+
+def explain_concept_discovery(code: str, concept_name: str) -> str:
+    """
+    Explain how and why a specific concept was discovered.
+    
+    Args:
+        code: Python source code that was analyzed
+        concept_name: Name of the concept to explain
+        
+    Returns:
+        Human-readable explanation of the discovery process
+    """
+    # Analyze and discover
+    result = analyze_code(code)
+    discoverer = ConceptDiscoverer(result.semantic_db)
+    kg = discoverer.discover_concepts()
+    
+    concept = Concept(concept_name.title())
+    metadata = kg.get_concept_metadata(concept)
+    
+    if not metadata:
+        return f"Concept '{concept_name}' was not discovered in the analyzed code."
+    
+    lines = [f"Discovery Explanation for '{concept}':", "=" * 50, ""]
+    
+    # Discovery method
+    lines.append(f"Discovery Method: {metadata.discovery_method}")
+    lines.append(f"Confidence Score: {metadata.confidence:.2f}")
+    lines.append("")
+    
+    # Explain based on method
+    if metadata.discovery_method == "CRUD_PATTERN":
+        lines.append("This concept was discovered through CRUD pattern analysis.")
+        lines.append("The following CRUD operations were found:")
+        
+        # Find the CRUD pattern
+        for pattern in discoverer._discovered_patterns:
+            if pattern.concept_name == concept:
+                if pattern.create_functions:
+                    lines.append(f"  Create: {', '.join(pattern.create_functions)}")
+                if pattern.read_functions:
+                    lines.append(f"  Read: {', '.join(pattern.read_functions)}")
+                if pattern.update_functions:
+                    lines.append(f"  Update: {', '.join(pattern.update_functions)}")
+                if pattern.delete_functions:
+                    lines.append(f"  Delete: {', '.join(pattern.delete_functions)}")
+                break
+                
+    elif metadata.discovery_method == "NOUN_EXTRACTION":
+        lines.append("This concept was discovered through noun extraction.")
+        lines.append(f"The term '{concept}' appeared frequently in:")
+        lines.append("  - Function names")
+        lines.append("  - Documentation strings")
+        
+    elif "BEHAVIOR_ANALYSIS" in metadata.discovery_method:
+        lines.append("This concept was discovered through semantic behavior analysis.")
+        lines.append(f"Related behaviors: {', '.join(metadata.related_behaviors)}")
+    
+    lines.append("")
+    lines.append("Source Functions:")
+    for func in metadata.source_functions[:10]:  # Limit to 10
+        lines.append(f"  - {func}")
+    
+    if len(metadata.source_functions) > 10:
+        lines.append(f"  ... and {len(metadata.source_functions) - 10} more")
+    
+    return "\n".join(lines)

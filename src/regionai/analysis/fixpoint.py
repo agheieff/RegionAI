@@ -11,7 +11,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.regionai.discovery.abstract_domains import (
+from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
     update_sign_state, reset_abstract_state
 )
