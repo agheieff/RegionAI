@@ -12,19 +12,21 @@ from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
 from ..semantic.fingerprint import SemanticFingerprint, Behavior
 
 
-def analyze_code(code: str) -> AnalysisResult:
+def analyze_code(code: str, include_source: bool = True) -> AnalysisResult:
     """
     Analyze a Python codebase and return comprehensive results.
     
     Args:
         code: Python source code to analyze
+        include_source: Whether to include source code for enhanced documentation extraction
         
     Returns:
         AnalysisResult containing summaries, fingerprints, and semantic database
     """
     tree = ast.parse(code)
     analyzer = InterproceduralAnalyzer()
-    return analyzer.analyze_program(tree)
+    source_code = code if include_source else None
+    return analyzer.analyze_program(tree, source_code)
 
 
 def find_similar_functions(code: str, target_function_name: str,

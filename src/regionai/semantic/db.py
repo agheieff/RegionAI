@@ -11,7 +11,8 @@ from collections import defaultdict
 
 from ..analysis.summary import CallContext
 from .fingerprint import (
-    SemanticFingerprint, Behavior, FingerprintComparison
+    SemanticFingerprint, Behavior, FingerprintComparison, 
+    DocumentedFingerprint, NaturalLanguageContext, DocumentationQuality
 )
 
 FunctionName = NewType('FunctionName', str)
@@ -28,10 +29,12 @@ class SemanticEntry:
     function_name: FunctionName
     context: CallContext
     fingerprint: SemanticFingerprint
+    documented_fingerprint: Optional[DocumentedFingerprint] = None
     
     def __str__(self) -> str:
         behaviors = sorted(b.name for b in self.fingerprint.behaviors)
-        return f"{self.function_name} @ {self.context}: {behaviors}"
+        doc_status = "documented" if self.documented_fingerprint else "undocumented"
+        return f"{self.function_name} @ {self.context}: {behaviors} ({doc_status})"
 
 
 class SemanticDB:
@@ -215,6 +218,90 @@ class SemanticDB:
     def find_constant_functions(self) -> List[SemanticEntry]:
         """Find all constant-returning functions in the database."""
         return self.find_by_behavior(Behavior.CONSTANT_RETURN)
+    
+    def find_documented_functions(self) -> List[SemanticEntry]:
+        """Find all functions that have documentation."""
+        return [entry for entry in self._entries if entry.documented_fingerprint]
+    
+    def find_well_documented_functions(self) -> List[SemanticEntry]:
+        """Find functions with high-quality documentation suitable for training."""
+        return [
+            entry for entry in self._entries 
+            if (entry.documented_fingerprint and 
+                entry.documented_fingerprint.is_well_documented())
+        ]
+    
+    def find_training_candidates(self) -> List[SemanticEntry]:
+        """Find functions suitable for language model training."""
+        return [
+            entry for entry in self._entries
+            if (entry.documented_fingerprint and 
+                DocumentationQuality.is_suitable_for_training(entry.documented_fingerprint))
+        ]
+    
+    def get_documentation_statistics(self) -> Dict[str, int]:
+        """Get statistics on documentation coverage."""
+        stats = {
+            'total_functions': len(self._entries),
+            'documented_functions': 0,
+            'well_documented_functions': 0,
+            'training_candidates': 0,
+        }
+        
+        for entry in self._entries:
+            if entry.documented_fingerprint:
+                stats['documented_functions'] += 1
+                
+                if entry.documented_fingerprint.is_well_documented():
+                    stats['well_documented_functions'] += 1
+                
+                if DocumentationQuality.is_suitable_for_training(entry.documented_fingerprint):
+                    stats['training_candidates'] += 1
+        
+        return stats
+    
+    def find_by_documentation_pattern(self, pattern: str) -> List[SemanticEntry]:
+        """
+        Find functions whose documentation contains a specific pattern.
+        
+        Useful for finding functions that describe similar behaviors.
+        """
+        results = []
+        pattern_lower = pattern.lower()
+        
+        for entry in self._entries:
+            if not entry.documented_fingerprint:
+                continue
+                
+            nl_context = entry.documented_fingerprint.nl_context
+            text_content = nl_context.get_text_content().lower()
+            
+            if pattern_lower in text_content:
+                results.append(entry)
+        
+        return results
+    
+    def create_language_training_dataset(self) -> List[Tuple[str, str]]:
+        """
+        Create a dataset suitable for language model training.
+        
+        Returns pairs of (documentation, semantic_description) for training.
+        """
+        dataset = []
+        
+        for entry in self.find_training_candidates():
+            doc_fp = entry.documented_fingerprint
+            
+            # Natural language documentation
+            documentation = doc_fp.nl_context.get_text_content()
+            
+            # Semantic description
+            semantic_desc = doc_fp.get_semantic_summary()
+            
+            if documentation and semantic_desc:
+                dataset.append((documentation, semantic_desc))
+        
+        return dataset
     
     def size(self) -> int:
         """Return the number of entries in the database."""

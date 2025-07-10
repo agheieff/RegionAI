@@ -18,9 +18,10 @@ from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
     reset_abstract_state
 )
-from ..semantic.fingerprint import SemanticFingerprint
+from ..semantic.fingerprint import SemanticFingerprint, DocumentedFingerprint
 from ..semantic.fingerprinter import Fingerprinter
 from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
+from ..pipeline.documentation_extractor import AdvancedDocumentationExtractor
 
 
 @dataclass
@@ -32,6 +33,7 @@ class AnalysisResult:
     call_graph: CallGraph
     semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = None
     semantic_db: Optional[SemanticDB] = None
+    documented_fingerprints: Dict[CallContext, DocumentedFingerprint] = None
 
 
 class InterproceduralAnalyzer:
@@ -49,11 +51,21 @@ class InterproceduralAnalyzer:
         self.fingerprinter = Fingerprinter()
         self.semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = {}
         self.semantic_db = SemanticDB()
+        self.documentation_extractor = AdvancedDocumentationExtractor()
+        self.documented_fingerprints: Dict[CallContext, DocumentedFingerprint] = {}
+        self.source_code: Optional[str] = None
         
-    def analyze_program(self, tree: ast.AST) -> AnalysisResult:
+    def analyze_program(self, tree: ast.AST, source_code: Optional[str] = None) -> AnalysisResult:
         """
         Perform interprocedural analysis on entire program.
+        
+        Args:
+            tree: AST of the program to analyze
+            source_code: Optional source code for enhanced documentation extraction
         """
+        # Store source code for documentation extraction
+        self.source_code = source_code
+        
         # Step 1: Build call graph
         self.call_graph = build_call_graph(tree)
         
@@ -105,7 +117,8 @@ class InterproceduralAnalyzer:
             warnings=self.warnings,
             call_graph=self.call_graph,
             semantic_fingerprints=self.semantic_fingerprints,
-            semantic_db=self.semantic_db
+            semantic_db=self.semantic_db,
+            documented_fingerprints=self.documented_fingerprints
         )
     
     def _collect_functions(self, tree: ast.AST):
@@ -197,11 +210,26 @@ class InterproceduralAnalyzer:
         fingerprint = self.fingerprinter.fingerprint(context, summary)
         self.semantic_fingerprints[context] = fingerprint
         
+        # Extract documentation context
+        func_ast = self.function_asts.get(func_name)
+        if func_ast:
+            nl_context = self.documentation_extractor.extract_from_function(
+                func_ast, self.source_code
+            )
+            
+            # Create documented fingerprint
+            documented_fp = DocumentedFingerprint(
+                fingerprint=fingerprint,
+                nl_context=nl_context
+            )
+            self.documented_fingerprints[context] = documented_fp
+        
         # Add to semantic database
         semantic_entry = SemanticEntry(
             function_name=FunctionName(func_name),
             context=context,
-            fingerprint=fingerprint
+            fingerprint=fingerprint,
+            documented_fingerprint=self.documented_fingerprints.get(context)
         )
         self.semantic_db.add(semantic_entry)
         

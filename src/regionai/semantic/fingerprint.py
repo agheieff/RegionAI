@@ -6,7 +6,7 @@ semantic understanding by classifying functions based on their behavior patterns
 """
 from enum import Enum, auto
 from dataclasses import dataclass, field
-from typing import Set, Optional, Dict, Any
+from typing import Set, Optional, Dict, Any, List
 
 
 class Behavior(Enum):
@@ -199,3 +199,135 @@ class FingerprintComparison:
         # For now, consider them equivalent if they have the same behaviors
         # In the future, this could be more sophisticated
         return self.fingerprint1.behaviors == self.fingerprint2.behaviors
+
+
+@dataclass
+class NaturalLanguageContext:
+    """
+    Holds the natural language context associated with a function.
+    
+    This captures human-readable information that describes what a function
+    does, forming the basis for connecting code semantics to natural language.
+    """
+    function_name: str
+    docstring: Optional[str] = None
+    parameter_names: List[str] = field(default_factory=list)
+    return_description: Optional[str] = None  # Extracted from docstring
+    
+    # Additional context that could be valuable
+    comments: List[str] = field(default_factory=list)  # Inline comments
+    variable_names: List[str] = field(default_factory=list)  # Local variable names
+    
+    def has_documentation(self) -> bool:
+        """Check if function has any natural language documentation."""
+        return (self.docstring is not None or 
+                len(self.comments) > 0 or
+                self.return_description is not None)
+    
+    def get_text_content(self) -> str:
+        """Get all text content concatenated for analysis."""
+        parts = []
+        if self.docstring:
+            parts.append(self.docstring)
+        if self.return_description:
+            parts.append(f"Returns: {self.return_description}")
+        if self.comments:
+            parts.extend(self.comments)
+        return " ".join(parts)
+
+
+@dataclass
+class DocumentedFingerprint:
+    """
+    Links a semantic fingerprint to its natural language context.
+    
+    This is the fundamental data structure for the Language Bridge - it connects
+    machine-understandable semantic behaviors with human-written descriptions,
+    enabling the training of models that understand both code and language.
+    """
+    fingerprint: SemanticFingerprint
+    nl_context: NaturalLanguageContext
+    
+    def get_semantic_summary(self) -> str:
+        """Get a human-readable summary of semantic behaviors."""
+        if not self.fingerprint.behaviors:
+            return "Function with no identified behaviors"
+        
+        behavior_names = [b.name.lower().replace('_', ' ') for b in self.fingerprint.behaviors]
+        return f"Function with behaviors: {', '.join(behavior_names)}"
+    
+    def is_well_documented(self) -> bool:
+        """Check if function has both semantic fingerprint and documentation."""
+        return (len(self.fingerprint.behaviors) > 0 and 
+                self.nl_context.has_documentation())
+    
+    def __str__(self) -> str:
+        """Human-readable representation for debugging."""
+        return (f"DocumentedFingerprint:\n"
+                f"  Function: {self.nl_context.function_name}\n"
+                f"  Behaviors: {[b.name for b in self.fingerprint.behaviors]}\n"
+                f"  Documented: {self.nl_context.has_documentation()}")
+
+
+class DocumentationQuality:
+    """
+    Utilities for assessing the quality of documentation for training purposes.
+    """
+    
+    @staticmethod
+    def score_documentation(nl_context: NaturalLanguageContext) -> float:
+        """
+        Score documentation quality from 0.0 to 1.0.
+        
+        Higher scores indicate better training data for language models.
+        """
+        score = 0.0
+        
+        # Docstring presence and quality
+        if nl_context.docstring:
+            doc_len = len(nl_context.docstring.strip())
+            if doc_len > 10:  # Meaningful docstring
+                score += 0.4
+            if doc_len > 50:  # Detailed docstring
+                score += 0.2
+            if "return" in nl_context.docstring.lower():  # Describes return value
+                score += 0.1
+        else:
+            # No docstring significantly hurts the score
+            score = 0.0
+        
+        # Parameter descriptions
+        if nl_context.parameter_names:
+            # Bonus if parameters have meaningful names
+            meaningful_params = sum(1 for name in nl_context.parameter_names 
+                                  if len(name) > 2 and name not in ['x', 'y', 'z', 'i', 'j', 'k'])
+            if meaningful_params > 0:
+                score += 0.1 * min(meaningful_params / len(nl_context.parameter_names), 1.0)
+        
+        # Additional comments
+        if nl_context.comments:
+            score += min(0.1, len(nl_context.comments) * 0.05)
+        
+        return min(score, 1.0)
+    
+    @staticmethod
+    def is_suitable_for_training(documented_fp: DocumentedFingerprint) -> bool:
+        """
+        Determine if this documented fingerprint is suitable for training.
+        
+        Good training examples have clear semantics and good documentation.
+        """
+        # Must have some behaviors identified
+        if len(documented_fp.fingerprint.behaviors) == 0:
+            return False
+        
+        # Must have decent documentation
+        doc_score = DocumentationQuality.score_documentation(documented_fp.nl_context)
+        if doc_score < 0.3:
+            return False
+        
+        # Avoid very complex functions (too many behaviors might be confusing)
+        if len(documented_fp.fingerprint.behaviors) > 5:
+            return False
+        
+        return True
