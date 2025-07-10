@@ -154,6 +154,21 @@ class KnowledgeGraph:
         if target not in self.graph:
             self.add_concept(target)
         
+        # Check if this exact relationship already exists
+        existing_edges = self.graph.get_edge_data(source, target)
+        if existing_edges:
+            # Check if we already have this exact relation type
+            for key, edge_data in existing_edges.items():
+                if edge_data['label'] == relation:
+                    # Update existing relationship if new evidence or higher confidence
+                    if confidence and confidence > edge_data.get('confidence', 0):
+                        edge_data['confidence'] = confidence
+                        edge_data['metadata'].confidence = confidence
+                    if evidence and evidence not in edge_data['metadata'].evidence_patterns:
+                        edge_data['metadata'].evidence_patterns.append(evidence)
+                        edge_data['evidence'] = evidence
+                    return  # Don't add duplicate
+        
         self.graph.add_edge(source, target, 
                            label=relation,
                            metadata=metadata,

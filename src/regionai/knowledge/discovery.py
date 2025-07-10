@@ -195,25 +195,52 @@ class ConceptDiscoverer:
                         self._noun_frequencies[noun] += 1
         
         # Consider nouns that appear frequently as concepts
-        threshold = 3  # Mentioned at least 3 times
+        threshold = 1  # Mentioned at least 1 time (but will be filtered by verbs)
+        # Also check against common verbs to double-filter
+        common_verbs = {'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
+                       'check', 'validate', 'process', 'handle', 'do', 'make',
+                       'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
+                       'build', 'generate', 'convert', 'transform', 'parse',
+                       'init', 'setup', 'configure', 'register', 'unregister',
+                       'start', 'stop', 'run', 'execute', 'call', 'invoke',
+                       'find', 'search', 'list', 'count', 'exists', 'contains',
+                       'creates', 'gets', 'sets', 'updates', 'deletes',
+                       'assign', 'assigns', 'assigned', 'manager', 'self'}
+        
         for noun, frequency in self._noun_frequencies.items():
             if frequency >= threshold:
-                # Filter out common programming terms
-                if not self._is_programming_term(noun):
+                # Filter out common programming terms and verbs
+                if not self._is_programming_term(noun) and noun.lower() not in common_verbs:
                     concepts.add(noun.title())
         
         return concepts
     
     def _extract_nouns_from_identifier(self, identifier: str) -> List[str]:
         """Extract potential nouns from snake_case or camelCase identifiers."""
-        # Split by underscore or camelCase
-        parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)', identifier)
-        if not parts:
-            parts = identifier.split('_')
+        # First split by underscore
+        underscore_parts = identifier.split('_')
+        all_parts = []
+        
+        for part in underscore_parts:
+            # Then split each part by camelCase
+            camel_parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)', part)
+            if camel_parts:
+                all_parts.extend(camel_parts)
+            else:
+                all_parts.append(part)
+        
+        parts = all_parts
         
         # Filter to potential nouns (simple heuristic: not common verbs)
         common_verbs = {'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
-                       'check', 'validate', 'process', 'handle', 'do', 'make'}
+                       'check', 'validate', 'process', 'handle', 'do', 'make',
+                       'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
+                       'build', 'generate', 'convert', 'transform', 'parse',
+                       'init', 'setup', 'configure', 'register', 'unregister',
+                       'start', 'stop', 'run', 'execute', 'call', 'invoke',
+                       'find', 'search', 'list', 'count', 'exists', 'contains',
+                       'creates', 'gets', 'sets', 'updates', 'deletes',
+                       'assign', 'assigns', 'assigned', 'manager', 'self'}
         
         nouns = []
         for part in parts:
@@ -228,14 +255,32 @@ class ConceptDiscoverer:
         # Simple approach: look for capitalized words and common patterns
         # In a production system, we'd use NLP libraries like spaCy
         
-        words = re.findall(r'\b[A-Z][a-z]+\b', text)
+        # Skip common sentence starters and pronouns
+        skip_words = {'this', 'that', 'these', 'those', 'each', 'every', 'all',
+                     'some', 'any', 'many', 'few', 'several', 'both', 'either',
+                     'neither', 'when', 'where', 'what', 'which', 'who', 'how',
+                     'items', 'item', 'data', 'info', 'information'}
+        
+        # Look for capitalized words that aren't at sentence start
+        words = []
+        sentences = text.split('.')
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            # Find capitalized words, but skip the first word of sentence
+            sentence_words = sentence.split()
+            if len(sentence_words) > 1:
+                for word in sentence_words[1:]:
+                    if word and word[0].isupper() and word.isalpha():
+                        words.append(word)
         
         # Also extract words after "a", "an", "the"
         article_pattern = r'\b(?:a|an|the)\s+(\w+)\b'
         article_nouns = re.findall(article_pattern, text, re.IGNORECASE)
         
         all_nouns = [w.lower() for w in words + article_nouns]
-        return [n for n in all_nouns if not self._is_programming_term(n)]
+        return [n for n in all_nouns if not self._is_programming_term(n) and n not in skip_words]
     
     def _is_programming_term(self, word: str) -> bool:
         """Check if a word is a common programming term rather than a domain concept."""
@@ -243,7 +288,9 @@ class ConceptDiscoverer:
             'function', 'method', 'class', 'variable', 'parameter', 'argument',
             'return', 'value', 'type', 'object', 'instance', 'array', 'list',
             'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
-            'true', 'false', 'none', 'null', 'error', 'exception'
+            'true', 'false', 'none', 'null', 'error', 'exception',
+            'new', 'old', 'one', 'two', 'three', 'first', 'last', 'next',
+            'single', 'multiple', 'few', 'many', 'all', 'some', 'any'
         }
         return word.lower() in programming_terms
     

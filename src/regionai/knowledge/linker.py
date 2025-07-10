@@ -27,6 +27,10 @@ class RelationshipPattern:
             r'{source}\s+includes\s+(?:a|an)\s+{target}',
             r'{source}\s+owns\s+(?:a|an)\s+{target}',
             r'each\s+{source}\s+has\s+(?:a|an)\s+{target}',
+            r'{source}\s+has\s+one\s+{target}',
+            r'each\s+{source}\s+has\s+one\s+{target}',
+            r'{source}\s+has\s+exactly\s+one\s+{target}',
+            r'each\s+{source}\s+has\s+exactly\s+one\s+{target}',
         ],
         'HAS_MANY': [
             r'{source}\s+has\s+(?:multiple|many|several)\s+{target}s?',
@@ -336,12 +340,15 @@ class KnowledgeLinker:
         pattern_confidence = 0.8 if rel_type in ['HAS_ONE', 'HAS_MANY', 'BELONGS_TO'] else 0.7
         final_confidence = base_confidence * pattern_confidence
         
+        # Strip and normalize evidence
+        evidence_cleaned = evidence.strip()
+        
         # Create metadata
         metadata = RelationMetadata(
             relation_type=rel_type,
             confidence=final_confidence,
             evidence_functions=[source_function],
-            evidence_patterns=[evidence.strip()]
+            evidence_patterns=[evidence_cleaned]
         )
         
         # Add to graph
@@ -350,7 +357,7 @@ class KnowledgeLinker:
             Relation(rel_type),
             metadata=metadata,
             confidence=final_confidence,
-            evidence=evidence.strip()
+            evidence=evidence_cleaned
         )
         
         # Track for reporting
@@ -359,7 +366,7 @@ class KnowledgeLinker:
             'target': target,
             'relation': rel_type,
             'confidence': final_confidence,
-            'evidence': evidence.strip(),
+            'evidence': evidence_cleaned,
             'source_function': source_function
         })
     

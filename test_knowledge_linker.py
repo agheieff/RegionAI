@@ -119,7 +119,7 @@ def get_order_items(order_id):
     # Check specific relationships from documentation
     user_profile_rels = kg_enriched.get_relations_with_confidence("User")
     has_profile_rel = any(
-        r['target'] == "Profile" and r['relation'] == "HAS_ONE"
+        str(r['target']) == "Profile" and str(r['relation']) == "HAS_ONE"
         for r in user_profile_rels
     )
     assert has_profile_rel, "Should find User HAS_ONE Profile from documentation"
@@ -274,7 +274,7 @@ def assign_manager(employee_id, manager_id):
     
     dept_rel = next(
         (r for r in employee_rels if 
-         r['target'] == "Department" and r['relation'] == "BELONGS_TO"),
+         str(r['target']) == "Department" and str(r['relation']) == "BELONGS_TO"),
         None
     )
     
@@ -290,7 +290,7 @@ def assign_manager(employee_id, manager_id):
     # Check self-referential manager relationship
     manager_rel = next(
         (r for r in employee_rels if 
-         r['target'] == "Employee" and "manager" in str(r['relation']).lower()),
+         str(r['target']) == "Employee" and "manager" in str(r['relation']).lower()),
         None
     )
     

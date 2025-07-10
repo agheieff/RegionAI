@@ -787,6 +787,24 @@ def find_concept_functions(code: str, concept_name: str) -> Dict[str, List[str]]
     return organized
 
 
+def build_knowledge_graph_from_codebase(code: str) -> KnowledgeGraph:
+    """
+    Build a complete, enriched knowledge graph from a codebase.
+    
+    This is the main entry point for knowledge extraction. It orchestrates:
+    1. Semantic analysis of the code
+    2. Concept discovery using multiple heuristics
+    3. Relationship enrichment from documentation
+    
+    Args:
+        code: Python source code to analyze
+        
+    Returns:
+        A fully populated and enriched KnowledgeGraph
+    """
+    return build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+
+
 def explain_concept_discovery(code: str, concept_name: str) -> str:
     """
     Explain how and why a specific concept was discovered.
