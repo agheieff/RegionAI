@@ -8,7 +8,6 @@ from typing import Dict, Any
 from regionai.discovery.abstract_domains import (
     Sign, Nullability, 
     sign_add, sign_multiply, nullability_join,
-    reset_abstract_state, update_sign_state, update_nullability_state,
     check_null_dereference, prove_property
 )
 from regionai.discovery.range_domain import (

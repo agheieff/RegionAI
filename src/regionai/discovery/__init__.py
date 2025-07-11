@@ -29,8 +29,7 @@ from .abstract_domains import (
     Sign, Nullability,
     sign_add, sign_multiply,
     check_null_dereference,
-    prove_property,
-    reset_abstract_state
+    prove_property
 )
 
 from .range_domain import Range, check_array_bounds
@@ -60,6 +59,5 @@ __all__ = [
     "sign_add", "sign_multiply",
     "check_null_dereference",
     "check_array_bounds",
-    "prove_property",
-    "reset_abstract_state"
+    "prove_property"
 ]

@@ -54,60 +54,7 @@ def nullability_meet(n1: Nullability, n2: Nullability) -> Nullability:
     return n1.meet(n2)
 
 
-# Global state for backward compatibility - DEPRECATED
-# This will be removed in the next major version
-_abstract_state = AbstractState()
-
-
-def reset_abstract_state():
-    """Reset global abstract state. DEPRECATED - use AnalysisContext instead."""
-    warnings.warn(
-        "reset_abstract_state() is deprecated. Use AnalysisContext for state management.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    global _abstract_state
-    _abstract_state = AbstractState()
-
-
-def update_sign_state(var: str, sign: Sign):
-    """Update sign in global state. DEPRECATED - use AnalysisContext instead."""
-    warnings.warn(
-        "update_sign_state() is deprecated. Use context.abstract_state.update_sign() instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    _abstract_state.update_sign(var, sign)
-
-
-def update_nullability_state(var: str, null: Nullability):
-    """Update nullability in global state. DEPRECATED - use AnalysisContext instead."""
-    warnings.warn(
-        "update_nullability_state() is deprecated. Use context.abstract_state.update_nullability() instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    _abstract_state.update_nullability(var, null)
-
-
-def get_sign_state(var: str) -> Optional[Sign]:
-    """Get sign from global state. DEPRECATED - use AnalysisContext instead."""
-    warnings.warn(
-        "get_sign_state() is deprecated. Use context.abstract_state.get_sign() instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return _abstract_state.get_sign(var)
-
-
-def get_nullability_state(var: str) -> Optional[Nullability]:
-    """Get nullability from global state. DEPRECATED - use AnalysisContext instead."""
-    warnings.warn(
-        "get_nullability_state() is deprecated. Use context.abstract_state.get_nullability() instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return _abstract_state.get_nullability(var)
+# Note: Global state has been removed. Use AnalysisContext for all state management.
 
 
 # Analysis functions
@@ -277,7 +224,5 @@ __all__ = [
     'sign_add', 'sign_multiply', 'sign_negate',
     'nullability_join', 'nullability_meet',
     'analyze_sign', 'check_null_dereference', 'prove_property',
-    'analyze_assignment',  # New context-aware function
-    'reset_abstract_state',  # Deprecated
-    'update_sign_state', 'update_nullability_state',  # Deprecated
+    'analyze_assignment'  # Context-aware function
 ]

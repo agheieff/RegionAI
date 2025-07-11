@@ -4,7 +4,7 @@ Tests for context-sensitive interprocedural analysis.
 import ast
 import pytest
 from regionai.analysis.interprocedural import InterproceduralAnalyzer
-from regionai.discovery.abstract_domains import Sign, Nullability, reset_abstract_state
+from regionai.discovery.abstract_domains import Sign, Nullability
 from regionai.analysis.summary import CallContext
 
 
@@ -12,8 +12,9 @@ class TestContextSensitiveAnalysis:
     """Test context-sensitive function analysis."""
     
     def setup_method(self):
-        """Reset state before each test."""
-        reset_abstract_state()
+        """Setup for each test."""
+        # No need to reset state - each InterproceduralAnalyzer creates its own context
+        pass
     
     def test_identity_function_with_different_contexts(self):
         """Test that identity function gets different summaries for different contexts."""

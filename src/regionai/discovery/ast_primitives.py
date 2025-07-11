@@ -307,16 +307,21 @@ def delete_node(root: ast.AST, args: List[Any]) -> ast.AST:
 
 # --- Data Flow Analysis Primitives ---
 
+# NOTE: The following global state functions were part of constant propagation
+# but are not currently used in the codebase. They're preserved here as comments
+# for historical reference, but should be refactored to use context objects
+# if constant propagation is re-implemented.
+
 # Global state map for tracking variable values during analysis
 # This would normally be part of a class, but simplified for discovery
-_variable_state_map = {}
+# _variable_state_map = {}
 
 
-def reset_state_map(root: ast.AST, args: List[Any]) -> None:
-    """Resets the variable state map for a fresh analysis."""
-    global _variable_state_map
-    _variable_state_map = {}
-    return root
+# def reset_state_map(root: ast.AST, args: List[Any]) -> None:
+#     """Resets the variable state map for a fresh analysis."""
+#     global _variable_state_map
+#     _variable_state_map = {}
+#     return root
 
 
 def get_variable_state(node: ast.AST, args: List[Any]) -> Union[ast.AST, str]:
@@ -632,35 +637,36 @@ AST_PRIMITIVES = [
         num_args=1  # node to delete
     ),
     
-    # Data Flow Analysis
-    Transformation(
-        name="RESET_STATE_MAP",
-        operation=reset_state_map,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
-    Transformation(
-        name="GET_VARIABLE_STATE",
-        operation=get_variable_state,
-        input_type="ast",
-        output_type="any",  # Can be Constant or "UNKNOWN"
-        num_args=0
-    ),
-    Transformation(
-        name="UPDATE_VARIABLE_STATE",
-        operation=update_variable_state,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
-    Transformation(
-        name="PROPAGATE_CONSTANTS",
-        operation=propagate_constants,
-        input_type="ast",
-        output_type="ast",
-        num_args=0
-    ),
+    # Data Flow Analysis - Commented out due to global state
+    # These transformations need to be refactored to use context objects
+    # Transformation(
+    #     name="RESET_STATE_MAP",
+    #     operation=reset_state_map,
+    #     input_type="ast",
+    #     output_type="ast",
+    #     num_args=0
+    # ),
+    # Transformation(
+    #     name="GET_VARIABLE_STATE",
+    #     operation=get_variable_state,
+    #     input_type="ast",
+    #     output_type="any",  # Can be Constant or "UNKNOWN"
+    #     num_args=0
+    # ),
+    # Transformation(
+    #     name="UPDATE_VARIABLE_STATE",
+    #     operation=update_variable_state,
+    #     input_type="ast",
+    #     output_type="ast",
+    #     num_args=0
+    # ),
+    # Transformation(
+    #     name="PROPAGATE_CONSTANTS",
+    #     operation=propagate_constants,
+    #     input_type="ast",
+    #     output_type="ast",
+    #     num_args=0
+    # ),
     
     # Traversal
     Transformation(

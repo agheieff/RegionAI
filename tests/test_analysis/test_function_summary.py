@@ -3,17 +3,18 @@ Tests for function summary system.
 """
 import ast
 import pytest
-from src.regionai.analysis.interprocedural import InterproceduralAnalyzer
-from src.regionai.analysis.call_graph import build_call_graph
-from src.regionai.discovery.abstract_domains import Sign, Nullability, reset_abstract_state
+from regionai.analysis.interprocedural import InterproceduralAnalyzer
+from regionai.analysis.call_graph import build_call_graph
+from regionai.discovery.abstract_domains import Sign, Nullability
 
 
 class TestFunctionSummary:
     """Test function summary computation and caching."""
     
     def setup_method(self):
-        """Reset state before each test."""
-        reset_abstract_state()
+        """Setup for each test."""
+        # No need to reset state - each InterproceduralAnalyzer creates its own context
+        pass
     
     def test_basic_summary(self):
         """Test basic function summary creation."""
