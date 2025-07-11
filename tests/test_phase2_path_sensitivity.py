@@ -109,20 +109,32 @@ def test_func(a, b):
         
         block_states = analyzer.analyze(initial_state)
         
-        # Should have multiple paths through the nested conditions
+        # Should have multiple abstract states at exit
         exit_states = block_states.get(cfg.exit_block, [])
-        assert len(exit_states) >= 3, "Should have at least 3 paths through nested conditions"
+        # In abstract interpretation, x=1 and x=2 are merged to x=POSITIVE
+        # So we expect 2 states: one where x is POSITIVE (a>0) and one where x is NEGATIVE (a<=0)
+        assert len(exit_states) >= 2, "Should have at least 2 abstract states at exit"
         
         # Check that we have different values of x
         x_values = set()
+        a_values = set()
         for state in exit_states:
             # Since we're using sign analysis, we'll check signs
             x_sign = state.abstract_state.get_sign('x')
+            a_sign = state.abstract_state.get_sign('a')
             x_values.add(x_sign)
+            a_values.add(a_sign)
         
-        # We should see both positive and negative
+        # We should see both positive and negative x values
         assert Sign.POSITIVE in x_values
         assert Sign.NEGATIVE in x_values
+        
+        # And we should have tracked that a>0 leads to x>0
+        # Find the state where x is positive
+        for state in exit_states:
+            if state.abstract_state.get_sign('x') == Sign.POSITIVE:
+                # In this state, a should be positive (due to path constraint a>0)
+                assert state.abstract_state.get_sign('a') == Sign.POSITIVE
     
     def test_path_sensitive_refinement(self):
         """Test that path constraints refine abstract values."""

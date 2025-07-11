@@ -450,7 +450,54 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
         if len(states) <= 1:
             return states
         
-        # Group states by their abstract values
+        # Get the maximum states per point from config
+        MAX_STATES_PER_POINT = self.context.config.max_states_per_point if hasattr(self.context.config, 'max_states_per_point') else 5
+        
+        # First check if we need aggressive merging due to too many states
+        if len(states) > MAX_STATES_PER_POINT:
+            # Aggressive merge: combine all states into one
+            final_merged = states[0].copy()
+            final_merged.path_constraints = []  # Clear path constraints
+            
+            # Collect all variables
+            all_vars = set()
+            for state in states:
+                all_vars.update(state.abstract_state.sign_state.keys())
+                all_vars.update(state.abstract_state.null_state.keys())
+            
+            # For each variable, join the values from ALL states
+            for var in all_vars:
+                # Sign domain
+                signs = set()
+                for state in states:
+                    if var in state.abstract_state.sign_state:
+                        signs.add(state.abstract_state.sign_state[var])
+                
+                if len(signs) == 0:
+                    pass  # Variable not present
+                elif len(signs) == 1:
+                    final_merged.abstract_state.set_sign(var, signs.pop())
+                else:
+                    # Multiple different values - set to TOP
+                    final_merged.abstract_state.set_sign(var, Sign.TOP)
+                
+                # Nullability domain
+                nulls = set()
+                for state in states:
+                    if var in state.abstract_state.null_state:
+                        nulls.add(state.abstract_state.null_state[var])
+                
+                if len(nulls) == 0:
+                    pass  # Variable not present
+                elif len(nulls) == 1:
+                    final_merged.abstract_state.set_nullability(var, nulls.pop())
+                else:
+                    # Multiple different values - set to NULLABLE (conservative)
+                    final_merged.abstract_state.set_nullability(var, Nullability.NULLABLE)
+            
+            return [final_merged]
+        
+        # Otherwise, group states by their abstract values
         from collections import defaultdict
         state_groups = defaultdict(list)
         
@@ -485,52 +532,6 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
                 # For now, just keep all constraints
                 representative.path_constraints = all_constraints
                 merged_states.append(representative)
-        
-        # If we still have too many distinct states, merge them more aggressively
-        MAX_STATES_PER_POINT = self.context.config.max_states_per_point if hasattr(self.context.config, 'max_states_per_point') else 5
-        
-        if len(merged_states) > MAX_STATES_PER_POINT:
-            # Aggressive merge: combine all states into one
-            final_merged = merged_states[0].copy()
-            final_merged.path_constraints = []  # Clear path constraints
-            
-            # Collect all variables
-            all_vars = set()
-            for state in merged_states:
-                all_vars.update(state.abstract_state.sign_state.keys())
-                all_vars.update(state.abstract_state.null_state.keys())
-            
-            # For each variable, join the values
-            for var in all_vars:
-                # Sign domain
-                signs = set()
-                for state in merged_states:
-                    if var in state.abstract_state.sign_state:
-                        signs.add(state.abstract_state.sign_state[var])
-                
-                if len(signs) == 0:
-                    pass  # Variable not present
-                elif len(signs) == 1:
-                    final_merged.abstract_state.set_sign(var, signs.pop())
-                else:
-                    # Multiple different values - set to TOP
-                    final_merged.abstract_state.set_sign(var, Sign.TOP)
-                
-                # Nullability domain
-                nulls = set()
-                for state in merged_states:
-                    if var in state.abstract_state.null_state:
-                        nulls.add(state.abstract_state.null_state[var])
-                
-                if len(nulls) == 0:
-                    pass  # Variable not present
-                elif len(nulls) == 1:
-                    final_merged.abstract_state.set_nullability(var, nulls.pop())
-                else:
-                    # Multiple different values - set to NULLABLE (conservative)
-                    final_merged.abstract_state.set_nullability(var, Nullability.NULLABLE)
-            
-            return [final_merged]
         
         return merged_states
 
