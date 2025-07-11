@@ -1,19 +1,18 @@
 """
 Unified discovery engine with strategy pattern for different discovery approaches.
 """
-from typing import List, Optional, Dict, Any, Set, Tuple, Protocol
+from typing import List, Optional, Dict, Any, Set, Tuple
 from abc import ABC, abstractmethod
 import torch
 import uuid
 from collections import deque
-from dataclasses import dataclass
 
 from ..data.problem import Problem
 from ..geometry.region import RegionND
 from .transformation import (
     Transformation, TransformationSequence, AppliedTransformation,
     ConditionalTransformation, ForEachTransformation,
-    PRIMITIVE_OPERATIONS, INVERSE_OPERATIONS
+    PRIMITIVE_OPERATIONS
 )
 
 

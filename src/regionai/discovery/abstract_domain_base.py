@@ -3,11 +3,9 @@ Unified abstract domain framework with base class and implementations.
 Consolidates Sign, Nullability, and Range domains with shared infrastructure.
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, TypeVar, Generic
-from enum import Enum, auto
+from typing import Dict, Optional, Union, TypeVar, Generic
+from enum import Enum
 from dataclasses import dataclass
-import ast
-import math
 
 T = TypeVar('T')
 

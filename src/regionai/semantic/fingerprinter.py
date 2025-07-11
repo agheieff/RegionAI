@@ -5,14 +5,13 @@ This service contains the logic to inspect a FunctionSummary and identify
 high-level behavioral patterns, creating a SemanticFingerprint that captures
 the conceptual essence of what a function does.
 """
-from typing import Optional, List, Any
-import ast
+from typing import Optional, List
 
 from ..analysis.summary import CallContext
-from ..analysis.function_summary import FunctionSummary, ReturnSummary
+from ..analysis.function_summary import FunctionSummary
 from .fingerprint import SemanticFingerprint, Behavior
 from ..discovery.abstract_domains import (
-    Sign, Nullability, AbstractState
+    Sign, Nullability
 )
 from ..discovery.range_domain import Range
 

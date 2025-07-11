@@ -7,7 +7,6 @@ fingerprints into numerical vectors suitable for neural network training.
 import torch
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Optional, Tuple
-import numpy as np
 
 from ..semantic.fingerprint import SemanticFingerprint, Behavior
 

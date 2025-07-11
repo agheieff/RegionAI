@@ -5,7 +5,7 @@ This module defines all configurable parameters for the analysis engine,
 allowing for easy tuning and different analysis profiles without modifying code.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List, Tuple
 from enum import Enum
 
 

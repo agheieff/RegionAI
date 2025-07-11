@@ -2,7 +2,7 @@
 Main discovery module - now a facade for the unified discovery engine.
 Maintains backward compatibility while using the new strategy-based engine.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 import warnings
 import sys
 import os

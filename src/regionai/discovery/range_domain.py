@@ -3,7 +3,6 @@ Range abstract domain for bounds analysis.
 Now uses unified base class implementation.
 """
 import ast
-from typing import Union, List, Any
 
 # Import from unified implementation
 from .abstract_domain_base import (

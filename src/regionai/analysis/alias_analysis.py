@@ -8,7 +8,7 @@ Since Python doesn't have explicit pointers, we track:
 4. Function parameters and returns
 """
 import ast
-from typing import Set, Optional
+from typing import Set
 from .context import AnalysisContext, AbstractLocation
 
 

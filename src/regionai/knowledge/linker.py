@@ -7,7 +7,7 @@ and evidence tracking. This is the bridge from deterministic code analysis
 to probabilistic belief formation.
 """
 import re
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple
 from collections import defaultdict
 import logging
 
@@ -96,8 +96,8 @@ class KnowledgeLinker:
             knowledge_graph: Graph to enrich with discovered relationships
         """
         self.db = semantic_db
-        self.kg = knowledge_graph
-        self.concepts = set(self.kg.get_concepts())
+        self.knowledge_graph = knowledge_graph
+        self.concepts = set(self.knowledge_graph.get_concepts())
         self.logger = logging.getLogger(__name__)
         
         # Track discovered relationships for reporting
@@ -158,7 +158,7 @@ class KnowledgeLinker:
                 self._process_documentation(entry)
         
         self.logger.info(f"Discovered {len(self._discovered_relationships)} relationships from text")
-        return self.kg
+        return self.knowledge_graph
     
     def _process_documentation(self, entry):
         """Process documentation from a single semantic entry."""
@@ -422,7 +422,7 @@ class KnowledgeLinker:
         )
         
         # Add to graph (the graph's add_relation method handles its own duplicate checking)
-        self.kg.add_relation(
+        self.knowledge_graph.add_relation(
             source, target, 
             Relation(rel_type),
             metadata=metadata,

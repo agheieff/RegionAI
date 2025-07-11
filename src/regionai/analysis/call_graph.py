@@ -2,9 +2,8 @@
 Call graph construction for interprocedural analysis.
 """
 import ast
-from typing import Dict, Set, List, Optional, Tuple
+from typing import Dict, Set, List, Optional
 from dataclasses import dataclass, field
-from collections import defaultdict
 
 
 @dataclass

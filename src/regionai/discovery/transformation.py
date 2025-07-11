@@ -5,9 +5,8 @@ as sequences of primitive operations.
 """
 
 from dataclasses import dataclass
-from typing import List, Callable, Optional, Dict, Any, Union
+from typing import List, Callable, Dict, Any, Union
 import torch
-import ast
 
 
 @dataclass(frozen=True)

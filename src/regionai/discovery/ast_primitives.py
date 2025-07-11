@@ -52,6 +52,42 @@ def get_child_at(node: ast.AST, args: List[Any]) -> Optional[ast.AST]:
 
 # --- AST Evaluation Primitives ---
 
+def _get_binop_handlers() -> Dict[type, Any]:
+    """Returns a dictionary mapping AST binary operation types to their handler functions."""
+    return {
+        ast.Add: lambda a, b: a + b,
+        ast.Sub: lambda a, b: a - b,
+        ast.Mult: lambda a, b: a * b,
+        ast.Div: lambda a, b: a / b,
+        ast.FloorDiv: lambda a, b: a // b,
+        ast.Mod: lambda a, b: a % b,
+        ast.Pow: lambda a, b: a ** b,
+        ast.LShift: lambda a, b: int(a) << int(b),
+        ast.RShift: lambda a, b: int(a) >> int(b),
+    }
+
+
+def _get_unaryop_handlers() -> Dict[type, Any]:
+    """Returns a dictionary mapping AST unary operation types to their handler functions."""
+    return {
+        ast.UAdd: lambda a: +a,
+        ast.USub: lambda a: -a,
+        ast.Not: lambda a: not a,
+    }
+
+
+def _get_compare_handlers() -> Dict[type, Any]:
+    """Returns a dictionary mapping AST comparison operation types to their handler functions."""
+    return {
+        ast.Eq: lambda a, b: a == b,
+        ast.NotEq: lambda a, b: a != b,
+        ast.Lt: lambda a, b: a < b,
+        ast.LtE: lambda a, b: a <= b,
+        ast.Gt: lambda a, b: a > b,
+        ast.GtE: lambda a, b: a >= b,
+    }
+
+
 def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
     """
     Evaluates a node if possible and returns a Constant with the result.
@@ -63,50 +99,37 @@ def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
             left_val = node.left.value
             right_val = node.right.value
             
-            # Evaluate based on operation type
-            try:
-                if isinstance(node.op, ast.Add):
-                    result = left_val + right_val
-                elif isinstance(node.op, ast.Sub):
-                    result = left_val - right_val
-                elif isinstance(node.op, ast.Mult):
-                    result = left_val * right_val
-                elif isinstance(node.op, ast.Div):
-                    result = left_val / right_val
-                elif isinstance(node.op, ast.FloorDiv):
-                    result = left_val // right_val
-                elif isinstance(node.op, ast.Mod):
-                    result = left_val % right_val
-                elif isinstance(node.op, ast.Pow):
-                    result = left_val ** right_val
-                elif isinstance(node.op, ast.LShift):
-                    result = int(left_val) << int(right_val)
-                elif isinstance(node.op, ast.RShift):
-                    result = int(left_val) >> int(right_val)
-                else:
-                    return node  # Unknown operation
-                
-                return ast.Constant(value=result)
-            except (TypeError, ValueError, ZeroDivisionError, OverflowError):
-                return node  # Evaluation failed - return original node
+            # Get the handler for this operation type
+            binop_handlers = _get_binop_handlers()
+            op_type = type(node.op)
+            
+            if op_type in binop_handlers:
+                try:
+                    handler = binop_handlers[op_type]
+                    result = handler(left_val, right_val)
+                    return ast.Constant(value=result)
+                except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+                    return node  # Evaluation failed - return original node
+            else:
+                return node  # Unknown operation
     
     elif isinstance(node, ast.UnaryOp):
         if isinstance(node.operand, ast.Constant):
             operand_val = node.operand.value
             
-            try:
-                if isinstance(node.op, ast.UAdd):
-                    result = +operand_val
-                elif isinstance(node.op, ast.USub):
-                    result = -operand_val
-                elif isinstance(node.op, ast.Not):
-                    result = not operand_val
-                else:
-                    return node
-                
-                return ast.Constant(value=result)
-            except (TypeError, ValueError, AttributeError):
-                return node  # Evaluation failed - return original node
+            # Get the handler for this operation type
+            unaryop_handlers = _get_unaryop_handlers()
+            op_type = type(node.op)
+            
+            if op_type in unaryop_handlers:
+                try:
+                    handler = unaryop_handlers[op_type]
+                    result = handler(operand_val)
+                    return ast.Constant(value=result)
+                except (TypeError, ValueError, AttributeError):
+                    return node  # Evaluation failed - return original node
+            else:
+                return node  # Unknown operation
     
     elif isinstance(node, ast.Compare):
         # Handle simple comparisons with constants
@@ -116,25 +139,19 @@ def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
                 right_val = node.comparators[0].value
                 op = node.ops[0]
                 
-                try:
-                    if isinstance(op, ast.Eq):
-                        result = left_val == right_val
-                    elif isinstance(op, ast.NotEq):
-                        result = left_val != right_val
-                    elif isinstance(op, ast.Lt):
-                        result = left_val < right_val
-                    elif isinstance(op, ast.LtE):
-                        result = left_val <= right_val
-                    elif isinstance(op, ast.Gt):
-                        result = left_val > right_val
-                    elif isinstance(op, ast.GtE):
-                        result = left_val >= right_val
-                    else:
-                        return node
-                    
-                    return ast.Constant(value=result)
-                except (TypeError, ValueError, AttributeError):
-                    return node  # Comparison evaluation failed
+                # Get the handler for this comparison type
+                compare_handlers = _get_compare_handlers()
+                op_type = type(op)
+                
+                if op_type in compare_handlers:
+                    try:
+                        handler = compare_handlers[op_type]
+                        result = handler(left_val, right_val)
+                        return ast.Constant(value=result)
+                    except (TypeError, ValueError, AttributeError):
+                        return node  # Comparison evaluation failed
+                else:
+                    return node  # Unknown comparison operation
     
     # Return original node if we can't evaluate
     return node

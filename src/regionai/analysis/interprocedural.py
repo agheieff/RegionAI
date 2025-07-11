@@ -3,14 +3,13 @@ Interprocedural analysis engine for whole-program analysis.
 REFACTORED VERSION: Uses AnalysisContext instead of global state.
 """
 import ast
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
-from collections import deque
 
 from .call_graph import CallGraph, build_call_graph
 from .function_summary import (
     FunctionSummary, SummaryComputer, 
-    ContextSensitiveSummaryCache, ReturnSummary
+    ContextSensitiveSummaryCache
 )
 from .summary import CallContext
 from .fixpoint import FixpointAnalyzer, AnalysisState

@@ -3,11 +3,10 @@ Fixpoint computation for abstract interpretation with widening.
 REFACTORED VERSION: Uses AnalysisContext instead of global state.
 """
 import ast
-from typing import Dict, Any, Optional, Set, Callable, List
+from typing import Dict, Any, Optional, Set, List
 from dataclasses import dataclass, field
-from copy import deepcopy
 
-from .cfg import ControlFlowGraph, BasicBlock, build_cfg, BlockType
+from .cfg import ControlFlowGraph, BasicBlock, build_cfg
 from .context import AnalysisContext
 from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,

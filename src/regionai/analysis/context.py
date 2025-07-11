@@ -4,7 +4,7 @@ single analysis run. This is crucial for eliminating global state and
 ensuring that analysis is re-entrant and thread-safe.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Any, Union, TYPE_CHECKING, Set, Optional
+from typing import Dict, Union, TYPE_CHECKING, Set, Optional
 import ast
 from enum import Enum, auto
 

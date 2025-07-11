@@ -5,14 +5,14 @@ This module provides the core infrastructure for storing and querying
 semantic fingerprints, enabling discovery of functionally equivalent
 or related code patterns across a codebase.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Set, NewType, Optional, Tuple
 from collections import defaultdict
 
 from ..analysis.summary import CallContext
 from .fingerprint import (
     SemanticFingerprint, Behavior, FingerprintComparison, 
-    DocumentedFingerprint, NaturalLanguageContext, DocumentationQuality
+    DocumentedFingerprint, DocumentationQuality
 )
 
 FunctionName = NewType('FunctionName', str)

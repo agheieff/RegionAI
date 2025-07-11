@@ -6,17 +6,16 @@ discovering semantic relationships between functions.
 """
 import ast
 import os
-from typing import List, Optional, Dict, Tuple, Any
+from typing import List, Optional, Dict, Any
 
 from ..analysis.interprocedural import InterproceduralAnalyzer, AnalysisResult
-from ..semantic.db import SemanticDB, SemanticEntry, FunctionName
+from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import SemanticFingerprint, Behavior
 from ..language.trainer import LanguageBridgeTrainer
-from ..language.projection_model import ModelCheckpoint
 from ..knowledge.graph import KnowledgeGraph, Concept
 from ..knowledge.discovery import ConceptDiscoverer
 from ..knowledge.linker import KnowledgeLinker
-from ..config import RegionAIConfig, DEFAULT_CONFIG
+from ..config import RegionAIConfig
 
 
 def analyze_code(code: str, include_source: bool = True, 

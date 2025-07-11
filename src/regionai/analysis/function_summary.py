@@ -2,10 +2,10 @@
 Function summaries for interprocedural analysis.
 """
 import ast
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from ..discovery.abstract_domains import Sign, Nullability, AbstractState
-from ..discovery.range_domain import Range, TOP, BOTTOM
+from ..discovery.range_domain import Range, TOP
 
 
 @dataclass

@@ -9,8 +9,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from typing import List, Tuple, Optional, Dict, Any
-import numpy as np
-from tqdm import tqdm
 import os
 from datetime import datetime
 

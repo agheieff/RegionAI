@@ -3,8 +3,7 @@ Function summary system for interprocedural analysis.
 """
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set, List, Tuple, Any
-from ..discovery.abstract_domains import AbstractState, Sign, Nullability
-from ..discovery.range_domain import Range
+from ..discovery.abstract_domains import AbstractState
 
 
 @dataclass(frozen=True)

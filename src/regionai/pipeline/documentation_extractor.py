@@ -7,7 +7,7 @@ human language understanding.
 """
 import ast
 import re
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict
 
 from ..semantic.fingerprint import NaturalLanguageContext
 

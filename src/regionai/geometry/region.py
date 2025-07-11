@@ -1,6 +1,6 @@
 """RegionND implementation for N-dimensional concept regions."""
 
-from typing import Callable, List, Sequence, Union, TYPE_CHECKING, Optional
+from typing import Sequence, Union, TYPE_CHECKING, Optional
 import torch
 
 if TYPE_CHECKING:

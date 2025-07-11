@@ -6,15 +6,51 @@ common-sense understanding by discovering concepts like "User", "Product",
 or "Invoice" from the functions that manipulate them.
 """
 import re
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
 import spacy
-from spacy.tokens import Doc
 
-from ..semantic.db import SemanticDB, SemanticEntry
+from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import Behavior
 from .graph import KnowledgeGraph, Concept, Relation, ConceptMetadata, RelationMetadata
+
+
+# Common programming verbs that should not be considered as domain concepts
+COMMON_PROGRAMMING_VERBS = {
+    'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
+    'check', 'validate', 'process', 'handle', 'do', 'make',
+    'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
+    'build', 'generate', 'convert', 'transform', 'parse',
+    'init', 'setup', 'configure', 'register', 'unregister',
+    'start', 'stop', 'run', 'execute', 'call', 'invoke',
+    'find', 'search', 'list', 'count', 'exists', 'contains',
+    'creates', 'gets', 'sets', 'updates', 'deletes',
+    'assign', 'assigns', 'assigned', 'manager', 'self',
+    'belong', 'belongs', 'establishes', 'establish'
+}
+
+# Common programming terms that should not be considered as domain concepts
+COMMON_PROGRAMMING_TERMS = {
+    'function', 'method', 'class', 'variable', 'parameter', 'argument',
+    'return', 'value', 'type', 'object', 'instance', 'array', 'list',
+    'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
+    'true', 'false', 'none', 'null', 'error', 'exception',
+    'new', 'old', 'one', 'two', 'three', 'first', 'last', 'next',
+    'single', 'multiple', 'few', 'many', 'all', 'some', 'any',
+    'record', 'records', 'item', 'items', 'entity', 'entities',
+    'field', 'fields', 'attribute', 'attributes', 'property', 'properties'
+}
+
+# Common skip words (determiners, pronouns, etc.) for text analysis
+COMMON_SKIP_WORDS = {
+    'this', 'that', 'these', 'those', 'each', 'every', 'all',
+    'some', 'any', 'many', 'few', 'several', 'both', 'either',
+    'neither', 'when', 'where', 'what', 'which', 'who', 'how',
+    'items', 'item', 'data', 'info', 'information', 'record',
+    'records', 'object', 'objects', 'entity', 'entities',
+    'thing', 'things', 'something', 'one', 'ones'
+}
 
 
 @dataclass
@@ -206,22 +242,11 @@ class ConceptDiscoverer:
         
         # Consider nouns that appear frequently as concepts
         threshold = 1  # Mentioned at least 1 time (but will be filtered by verbs)
-        # Also check against common verbs to double-filter
-        common_verbs = {'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
-                       'check', 'validate', 'process', 'handle', 'do', 'make',
-                       'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
-                       'build', 'generate', 'convert', 'transform', 'parse',
-                       'init', 'setup', 'configure', 'register', 'unregister',
-                       'start', 'stop', 'run', 'execute', 'call', 'invoke',
-                       'find', 'search', 'list', 'count', 'exists', 'contains',
-                       'creates', 'gets', 'sets', 'updates', 'deletes',
-                       'assign', 'assigns', 'assigned', 'manager', 'self',
-                       'belong', 'belongs', 'establishes', 'establish'}
         
         for noun, frequency in self._noun_frequencies.items():
             if frequency >= threshold:
                 # Filter out common programming terms and verbs
-                if not self._is_programming_term(noun) and noun.lower() not in common_verbs:
+                if not self._is_programming_term(noun) and noun.lower() not in COMMON_PROGRAMMING_VERBS:
                     concepts.add(noun.title())
         
         return concepts
@@ -243,20 +268,10 @@ class ConceptDiscoverer:
         parts = all_parts
         
         # Filter to potential nouns (simple heuristic: not common verbs)
-        common_verbs = {'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
-                       'check', 'validate', 'process', 'handle', 'do', 'make',
-                       'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
-                       'build', 'generate', 'convert', 'transform', 'parse',
-                       'init', 'setup', 'configure', 'register', 'unregister',
-                       'start', 'stop', 'run', 'execute', 'call', 'invoke',
-                       'find', 'search', 'list', 'count', 'exists', 'contains',
-                       'creates', 'gets', 'sets', 'updates', 'deletes',
-                       'assign', 'assigns', 'assigned', 'manager', 'self'}
-        
         nouns = []
         for part in parts:
             part_lower = part.lower()
-            if part_lower not in common_verbs and len(part_lower) > 2:
+            if part_lower not in COMMON_PROGRAMMING_VERBS and len(part_lower) > 2:
                 nouns.append(part_lower)
         
         return nouns
@@ -271,13 +286,7 @@ class ConceptDiscoverer:
         doc = self.nlp(text)
         nouns = []
         
-        # Common words to skip (pronouns, determiners, etc.)
-        skip_words = {'this', 'that', 'these', 'those', 'each', 'every', 'all',
-                     'some', 'any', 'many', 'few', 'several', 'both', 'either',
-                     'neither', 'when', 'where', 'what', 'which', 'who', 'how',
-                     'items', 'item', 'data', 'info', 'information', 'record',
-                     'records', 'object', 'objects', 'entity', 'entities',
-                     'thing', 'things', 'something', 'one', 'ones'}
+        # Use common skip words constant
         
         # Extract nouns based on POS tags
         for token in doc:
@@ -288,7 +297,7 @@ class ConceptDiscoverer:
                 word_lower = token.text.lower()
                 if (not self._is_programming_term(word_lower) and 
                     len(token.text) > 2 and 
-                    word_lower not in skip_words and
+                    word_lower not in COMMON_SKIP_WORDS and
                     not token.text.isupper()):  # Skip acronyms like "ID"
                     nouns.append(word_lower)
         
@@ -298,18 +307,14 @@ class ConceptDiscoverer:
             head = chunk.root.text.lower()
             if (not self._is_programming_term(head) and 
                 len(head) > 2 and 
-                head not in skip_words):
+                head not in COMMON_SKIP_WORDS):
                 nouns.append(head)
         
         return list(set(nouns))  # Remove duplicates
     
     def _extract_nouns_simple(self, text: str) -> List[str]:
         """Simple fallback noun extraction without spaCy."""
-        # Skip common sentence starters and pronouns
-        skip_words = {'this', 'that', 'these', 'those', 'each', 'every', 'all',
-                     'some', 'any', 'many', 'few', 'several', 'both', 'either',
-                     'neither', 'when', 'where', 'what', 'which', 'who', 'how',
-                     'items', 'item', 'data', 'info', 'information'}
+        # Use common skip words constant
         
         # Look for capitalized words that aren't at sentence start
         words = []
@@ -330,21 +335,11 @@ class ConceptDiscoverer:
         article_nouns = re.findall(article_pattern, text, re.IGNORECASE)
         
         all_nouns = [w.lower() for w in words + article_nouns]
-        return [n for n in all_nouns if not self._is_programming_term(n) and n not in skip_words]
+        return [n for n in all_nouns if not self._is_programming_term(n) and n not in COMMON_SKIP_WORDS]
     
     def _is_programming_term(self, word: str) -> bool:
         """Check if a word is a common programming term rather than a domain concept."""
-        programming_terms = {
-            'function', 'method', 'class', 'variable', 'parameter', 'argument',
-            'return', 'value', 'type', 'object', 'instance', 'array', 'list',
-            'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
-            'true', 'false', 'none', 'null', 'error', 'exception',
-            'new', 'old', 'one', 'two', 'three', 'first', 'last', 'next',
-            'single', 'multiple', 'few', 'many', 'all', 'some', 'any',
-            'record', 'records', 'item', 'items', 'entity', 'entities',
-            'field', 'fields', 'attribute', 'attributes', 'property', 'properties'
-        }
-        return word.lower() in programming_terms
+        return word.lower() in COMMON_PROGRAMMING_TERMS
     
     def _discover_by_behaviors(self) -> Dict[str, Set[str]]:
         """

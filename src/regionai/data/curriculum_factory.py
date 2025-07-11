@@ -3,7 +3,7 @@ Unified curriculum factory for generating all types of problems.
 """
 import ast
 import torch
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
