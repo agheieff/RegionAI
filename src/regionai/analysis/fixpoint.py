@@ -175,10 +175,10 @@ class FixpointAnalyzer:
         """
         self.cfg = cfg
         self.context = context if context is not None else AnalysisContext()
-        self.block_states: Dict[int, List[AnalysisState]] = {}  # Now stores list of states
+        self.block_states: Dict[int, AnalysisState] = {}  # Single state per block for non-path-sensitive
         self.worklist: Set[int] = set()
         
-    def analyze(self, initial_state: AbstractState) -> Dict[int, List[AnalysisState]]:
+    def analyze(self, initial_state: AbstractState) -> Dict[int, AnalysisState]:
         """
         Perform fixpoint analysis starting from initial state.
         
@@ -186,7 +186,7 @@ class FixpointAnalyzer:
             initial_state: Initial abstract state
             
         Returns:
-            Mapping from block IDs to their list of abstract states (path-sensitive)
+            Mapping from block IDs to their abstract states
         """
         # Initialize entry block with initial state
         if self.cfg.entry_block is not None:
@@ -195,7 +195,7 @@ class FixpointAnalyzer:
                 iteration_count=0,
                 path_constraints=[]
             )
-            self.block_states[self.cfg.entry_block] = [entry_state]
+            self.block_states[self.cfg.entry_block] = entry_state
             self.worklist.add(self.cfg.entry_block)
         
         # Fixpoint iteration
