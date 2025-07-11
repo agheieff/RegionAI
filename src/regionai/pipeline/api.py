@@ -16,15 +16,18 @@ from ..language.projection_model import ModelCheckpoint
 from ..knowledge.graph import KnowledgeGraph, Concept
 from ..knowledge.discovery import ConceptDiscoverer
 from ..knowledge.linker import KnowledgeLinker
+from ..config import RegionAIConfig, DEFAULT_CONFIG
 
 
-def analyze_code(code: str, include_source: bool = True) -> AnalysisResult:
+def analyze_code(code: str, include_source: bool = True, 
+                config: Optional[RegionAIConfig] = None) -> AnalysisResult:
     """
     Analyze a Python codebase and return comprehensive results.
     
     Args:
         code: Python source code to analyze
         include_source: Whether to include source code for enhanced documentation extraction
+        config: Optional configuration for analysis (uses DEFAULT_CONFIG if not provided)
         
     Returns:
         AnalysisResult containing summaries, fingerprints, and semantic database
@@ -32,11 +35,15 @@ def analyze_code(code: str, include_source: bool = True) -> AnalysisResult:
     tree = ast.parse(code)
     analyzer = InterproceduralAnalyzer()
     source_code = code if include_source else None
+    
+    # Note: When interprocedural.py is updated to use config, pass it here
+    # For now, the analyzer will create its own context with the default config
     return analyzer.analyze_program(tree, source_code)
 
 
 def find_similar_functions(code: str, target_function_name: str,
-                          similarity_threshold: float = 0.5) -> SemanticDB:
+                          similarity_threshold: float = 0.5,
+                          config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """
     Analyze a codebase and find functions semantically similar to the target.
     
@@ -44,12 +51,13 @@ def find_similar_functions(code: str, target_function_name: str,
         code: Python source code to analyze
         target_function_name: Name of the function to find similar matches for
         similarity_threshold: Minimum similarity score (0-1) for matches
+        config: Optional configuration for analysis
         
     Returns:
         SemanticDB containing only similar functions
     """
     # Run full analysis
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     
     if not result.semantic_db:
         return SemanticDB()
@@ -84,19 +92,21 @@ def find_similar_functions(code: str, target_function_name: str,
     return similar_db
 
 
-def find_equivalent_functions(code: str, target_function_name: str) -> SemanticDB:
+def find_equivalent_functions(code: str, target_function_name: str,
+                            config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """
     Find all functions that are semantically equivalent to the target.
     
     Args:
         code: Python source code to analyze
         target_function_name: Name of the function to find equivalents for
+        config: Optional configuration for analysis
         
     Returns:
         SemanticDB containing only equivalent functions
     """
     # Run full analysis
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     
     if not result.semantic_db:
         return SemanticDB()
@@ -128,18 +138,20 @@ def find_equivalent_functions(code: str, target_function_name: str) -> SemanticD
     return equivalent_db
 
 
-def find_functions_by_behavior(code: str, behavior: Behavior) -> SemanticDB:
+def find_functions_by_behavior(code: str, behavior: Behavior,
+                             config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """
     Find all functions that exhibit a specific behavior.
     
     Args:
         code: Python source code to analyze
         behavior: The behavior to search for
+        config: Optional configuration for analysis
         
     Returns:
         SemanticDB containing matching functions
     """
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     
     if not result.semantic_db:
         return SemanticDB()
@@ -153,22 +165,23 @@ def find_functions_by_behavior(code: str, behavior: Behavior) -> SemanticDB:
     return behavior_db
 
 
-def find_pure_functions(code: str) -> SemanticDB:
+def find_pure_functions(code: str, config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """Find all pure functions in the codebase."""
-    return find_functions_by_behavior(code, Behavior.PURE)
+    return find_functions_by_behavior(code, Behavior.PURE, config=config)
 
 
-def find_identity_functions(code: str) -> SemanticDB:
+def find_identity_functions(code: str, config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """Find all identity functions in the codebase."""
-    return find_functions_by_behavior(code, Behavior.IDENTITY)
+    return find_functions_by_behavior(code, Behavior.IDENTITY, config=config)
 
 
-def find_nullable_functions(code: str) -> SemanticDB:
+def find_nullable_functions(code: str, config: Optional[RegionAIConfig] = None) -> SemanticDB:
     """Find all functions that may return None."""
-    return find_functions_by_behavior(code, Behavior.NULLABLE_RETURN)
+    return find_functions_by_behavior(code, Behavior.NULLABLE_RETURN, config=config)
 
 
-def compare_functions(code: str, func1_name: str, func2_name: str) -> Dict[str, any]:
+def compare_functions(code: str, func1_name: str, func2_name: str,
+                     config: Optional[RegionAIConfig] = None) -> Dict[str, any]:
     """
     Compare two functions semantically.
     
@@ -176,6 +189,7 @@ def compare_functions(code: str, func1_name: str, func2_name: str) -> Dict[str, 
         code: Python source code containing both functions
         func1_name: Name of first function
         func2_name: Name of second function
+        config: Optional configuration for analysis
         
     Returns:
         Dictionary with comparison results including:
@@ -185,7 +199,7 @@ def compare_functions(code: str, func1_name: str, func2_name: str) -> Dict[str, 
         - unique_to_first: behaviors only in first function
         - unique_to_second: behaviors only in second function
     """
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     
     if not result.semantic_db:
         raise ValueError("Analysis failed")
@@ -215,14 +229,14 @@ def compare_functions(code: str, func1_name: str, func2_name: str) -> Dict[str, 
     return comparison
 
 
-def discover_patterns(code: str) -> Dict[str, List[str]]:
+def discover_patterns(code: str, config: Optional[RegionAIConfig] = None) -> Dict[str, List[str]]:
     """
     Discover common patterns in the codebase.
     
     Returns a dictionary mapping pattern names to lists of functions
     that exhibit those patterns.
     """
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     
     if not result.semantic_db:
         return {}
@@ -266,16 +280,21 @@ def discover_patterns(code: str) -> Dict[str, List[str]]:
     return {k: v for k, v in patterns.items() if v}
 
 
-def suggest_refactoring_opportunities(code: str) -> List[Dict[str, any]]:
+def suggest_refactoring_opportunities(code: str, 
+                                    config: Optional[RegionAIConfig] = None) -> List[Dict[str, any]]:
     """
     Analyze code and suggest refactoring opportunities based on semantic patterns.
+    
+    Args:
+        code: Python source code to analyze
+        config: Optional configuration for analysis
     
     Returns a list of suggestions, each containing:
     - type: The type of refactoring opportunity
     - functions: Functions involved
     - description: Explanation of the opportunity
     """
-    result = analyze_code(code)
+    result = analyze_code(code, config=config)
     suggestions = []
     
     if not result.semantic_db:
@@ -560,7 +579,8 @@ def evaluate_language_model(semantic_db: SemanticDB,
 
 
 def build_knowledge_graph(code: str, include_source: bool = True, 
-                         enrich_from_docs: bool = True) -> KnowledgeGraph:
+                         enrich_from_docs: bool = True,
+                         config: Optional[RegionAIConfig] = None) -> KnowledgeGraph:
     """
     Build a knowledge graph of real-world concepts from code analysis.
     
@@ -574,13 +594,14 @@ def build_knowledge_graph(code: str, include_source: bool = True,
         code: Python source code to analyze
         include_source: Whether to include source for documentation extraction
         enrich_from_docs: Whether to enrich the graph using natural language documentation
+        config: Optional configuration for analysis
         
     Returns:
         KnowledgeGraph containing discovered concepts and relationships
     """
     # First, perform semantic analysis
     print("Performing semantic analysis...")
-    result = analyze_code(code, include_source)
+    result = analyze_code(code, include_source, config=config)
     
     if not result.semantic_db:
         print("Warning: No semantic information found")

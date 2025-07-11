@@ -54,70 +54,119 @@ def nullability_meet(n1: Nullability, n2: Nullability) -> Nullability:
     return n1.meet(n2)
 
 
-# Global state for backward compatibility
+# Global state for backward compatibility - DEPRECATED
+# This will be removed in the next major version
 _abstract_state = AbstractState()
 
 
 def reset_abstract_state():
-    """Reset global abstract state."""
+    """Reset global abstract state. DEPRECATED - use AnalysisContext instead."""
+    warnings.warn(
+        "reset_abstract_state() is deprecated. Use AnalysisContext for state management.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     global _abstract_state
     _abstract_state = AbstractState()
 
 
 def update_sign_state(var: str, sign: Sign):
-    """Update sign in global state."""
+    """Update sign in global state. DEPRECATED - use AnalysisContext instead."""
+    warnings.warn(
+        "update_sign_state() is deprecated. Use context.abstract_state.update_sign() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     _abstract_state.update_sign(var, sign)
 
 
 def update_nullability_state(var: str, null: Nullability):
-    """Update nullability in global state."""
+    """Update nullability in global state. DEPRECATED - use AnalysisContext instead."""
+    warnings.warn(
+        "update_nullability_state() is deprecated. Use context.abstract_state.update_nullability() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     _abstract_state.update_nullability(var, null)
 
 
 def get_sign_state(var: str) -> Optional[Sign]:
-    """Get sign from global state."""
+    """Get sign from global state. DEPRECATED - use AnalysisContext instead."""
+    warnings.warn(
+        "get_sign_state() is deprecated. Use context.abstract_state.get_sign() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return _abstract_state.get_sign(var)
 
 
 def get_nullability_state(var: str) -> Optional[Nullability]:
-    """Get nullability from global state."""
+    """Get nullability from global state. DEPRECATED - use AnalysisContext instead."""
+    warnings.warn(
+        "get_nullability_state() is deprecated. Use context.abstract_state.get_nullability() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return _abstract_state.get_nullability(var)
 
 
 # Analysis functions
 
-def analyze_sign(node: ast.AST) -> Optional[Sign]:
-    """Analyze AST node to determine sign."""
+def analyze_sign(node: ast.AST, context=None) -> Optional[Sign]:
+    """
+    Analyze AST node to determine sign.
+    
+    Args:
+        node: AST node to analyze
+        context: Optional AnalysisContext. If not provided, uses global state (deprecated).
+    """
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)):
             return SignDomain.from_constant(node.value)
     elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-        inner_sign = analyze_sign(node.operand)
+        inner_sign = analyze_sign(node.operand, context)
         if inner_sign:
             return SignDomain.negate(inner_sign)
     elif isinstance(node, ast.BinOp):
-        left_sign = analyze_sign(node.left)
-        right_sign = analyze_sign(node.right)
+        left_sign = analyze_sign(node.left, context)
+        right_sign = analyze_sign(node.right, context)
         if left_sign and right_sign:
             if isinstance(node.op, ast.Add):
                 return SignDomain.add(left_sign, right_sign)
             elif isinstance(node.op, ast.Mult):
                 return SignDomain.multiply(left_sign, right_sign)
     elif isinstance(node, ast.Name):
-        return get_sign_state(node.id)
+        if context:
+            return context.abstract_state.get_sign(node.id)
+        else:
+            # Fallback to global state (deprecated)
+            return get_sign_state(node.id)
     
     return None
 
 
-def check_null_dereference(node: ast.AST) -> List[str]:
-    """Check for potential null dereferences."""
+def check_null_dereference(node: ast.AST, context=None) -> List[str]:
+    """
+    Check for potential null dereferences.
+    
+    Args:
+        node: AST node to check
+        context: Optional AnalysisContext. If not provided, uses global state (deprecated).
+    """
     errors = []
     
     class NullChecker(ast.NodeVisitor):
+        def __init__(self, context):
+            self.context = context
+            
         def visit_Attribute(self, node):
             # Check obj.attr access
             if isinstance(node.value, ast.Name):
-                null_state = get_nullability_state(node.value.id)
+                if self.context:
+                    null_state = self.context.abstract_state.get_nullability(node.value.id)
+                else:
+                    null_state = get_nullability_state(node.value.id)
+                    
                 if null_state == Nullability.DEFINITELY_NULL:
                     errors.append(f"Null pointer exception: {node.value.id} is null")
                 elif null_state == Nullability.NULLABLE:
@@ -127,45 +176,96 @@ def check_null_dereference(node: ast.AST) -> List[str]:
         def visit_Subscript(self, node):
             # Check obj[index] access
             if isinstance(node.value, ast.Name):
-                null_state = get_nullability_state(node.value.id)
+                if self.context:
+                    null_state = self.context.abstract_state.get_nullability(node.value.id)
+                else:
+                    null_state = get_nullability_state(node.value.id)
+                    
                 if null_state == Nullability.DEFINITELY_NULL:
                     errors.append(f"Null pointer exception: {node.value.id} is null")
             self.generic_visit(node)
     
-    NullChecker().visit(node)
+    NullChecker(context).visit(node)
     return errors
 
 
-def prove_property(tree: ast.AST, initial_state: Dict[str, Sign]) -> Dict[str, bool]:
+def prove_property(tree: ast.AST, initial_state: Dict[str, Sign], context=None) -> Dict[str, bool]:
     """
     Prove sign properties about variables.
     Returns dict mapping variable names to whether property holds.
+    
+    Args:
+        tree: AST to analyze
+        initial_state: Initial sign values for variables
+        context: Optional AnalysisContext. If not provided, uses global state (deprecated).
     """
-    reset_abstract_state()
+    # Use provided context or create a new one
+    if context is None:
+        # Create temporary context for backward compatibility
+        from ..analysis.context import AnalysisContext
+        context = AnalysisContext()
+        warnings.warn(
+            "prove_property() without context is deprecated. Pass an AnalysisContext.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
+    # Reset context state
+    context.reset()
     
     # Set initial state
     for var, sign in initial_state.items():
-        update_sign_state(var, sign)
+        context.abstract_state.update_sign(var, sign)
     
     # Simple interpreter for sign analysis
     class SignProver(ast.NodeVisitor):
+        def __init__(self, ctx):
+            self.context = ctx
+            
         def visit_Assign(self, node):
             if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                 var_name = node.targets[0].id
-                sign = analyze_sign(node.value)
+                sign = analyze_sign(node.value, self.context)
                 if sign:
-                    update_sign_state(var_name, sign)
+                    self.context.abstract_state.update_sign(var_name, sign)
             self.generic_visit(node)
     
-    SignProver().visit(tree)
+    SignProver(context).visit(tree)
     
     # Return which variables have definite signs
     result = {}
-    for var in _abstract_state.sign_state:
-        sign = _abstract_state.sign_state[var]
+    for var in context.abstract_state.sign_state:
+        sign = context.abstract_state.sign_state[var]
         result[var] = sign in [Sign.POSITIVE, Sign.NEGATIVE, Sign.ZERO]
     
     return result
+
+
+# New context-aware analysis functions (preferred)
+def analyze_assignment(node: ast.Assign, context):
+    """
+    Analyze an assignment statement and update the abstract state.
+    
+    Args:
+        node: Assignment AST node
+        context: AnalysisContext containing the abstract state
+    """
+    if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        var_name = node.targets[0].id
+        
+        # Analyze sign
+        sign = analyze_sign(node.value, context)
+        if sign:
+            context.abstract_state.update_sign(var_name, sign)
+        
+        # Analyze nullability
+        if isinstance(node.value, ast.Constant) and node.value.value is None:
+            context.abstract_state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
+        elif isinstance(node.value, ast.Name) and node.value.id == "None":
+            context.abstract_state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
+        else:
+            # For now, assume non-null for other values
+            context.abstract_state.update_nullability(var_name, Nullability.NOT_NULL)
 
 
 # Re-export key items
@@ -177,6 +277,7 @@ __all__ = [
     'sign_add', 'sign_multiply', 'sign_negate',
     'nullability_join', 'nullability_meet',
     'analyze_sign', 'check_null_dereference', 'prove_property',
-    'reset_abstract_state',
-    'update_sign_state', 'update_nullability_state',
+    'analyze_assignment',  # New context-aware function
+    'reset_abstract_state',  # Deprecated
+    'update_sign_state', 'update_nullability_state',  # Deprecated
 ]

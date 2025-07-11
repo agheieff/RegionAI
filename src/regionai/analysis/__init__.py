@@ -5,8 +5,10 @@ from .cfg import ControlFlowGraph, BasicBlock, build_cfg
 from .fixpoint import FixpointAnalyzer, analyze_with_fixpoint, WideningOperator
 from .call_graph import CallGraph, build_call_graph, visualize_call_graph
 from .function_summary import FunctionSummary, SummaryComputer
+from .context import AnalysisContext
 # Avoid circular import - import interprocedural directly when needed
 # from .interprocedural import InterproceduralAnalyzer, analyze_interprocedural
+# Note: interprocedural_refactored.py contains the version that uses AnalysisContext
 
 __all__ = [
     'ControlFlowGraph',
@@ -20,6 +22,7 @@ __all__ = [
     'visualize_call_graph',
     'FunctionSummary',
     'SummaryComputer',
+    'AnalysisContext',
     # 'InterproceduralAnalyzer',
     # 'analyze_interprocedural'
 ]

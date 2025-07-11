@@ -251,14 +251,19 @@ class Range(AbstractDomain['Range']):
         
         return Range(new_min, new_max)
     
-    def widen(self, other: 'Range', iteration: int = 0) -> 'Range':
-        """Widening with threshold."""
-        THRESHOLD = 3
+    def widen(self, other: 'Range', iteration: int = 0, threshold: int = 3) -> 'Range':
+        """
+        Widening with threshold.
         
+        Args:
+            other: Range to widen with
+            iteration: Current iteration count
+            threshold: Widening threshold (typically from config)
+        """
         if self == other:
             return self
         
-        if iteration >= THRESHOLD:
+        if iteration >= threshold:
             # Jump to infinity if bounds keep growing
             new_min = float('-inf') if other.min < self.min else self.min
             new_max = float('inf') if other.max > self.max else self.max
