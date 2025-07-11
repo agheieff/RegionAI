@@ -16,6 +16,7 @@ from ..semantic.fingerprint import DocumentationQuality
 from .graph import KnowledgeGraph, Concept, Relation, RelationMetadata
 from .bayesian_updater import BayesianUpdater
 from ..language.nlp_extractor import NLPExtractor
+from ..language.grammar_extractor import GrammarPatternExtractor
 from .action_discoverer import ActionDiscoverer
 
 
@@ -116,11 +117,21 @@ class KnowledgeLinker:
         # Initialize action discoverer for behavior understanding
         self.action_discoverer = ActionDiscoverer()
         
+        # Initialize grammar pattern extractor for language understanding
+        try:
+            self.grammar_extractor = GrammarPatternExtractor()
+        except (OSError, ImportError):
+            self.logger.warning("Could not initialize GrammarPatternExtractor. Grammar extraction disabled.")
+            self.grammar_extractor = None
+        
         # Track discovered relationships for reporting
         self._discovered_relationships: List[Dict[str, any]] = []
         
         # Track discovered actions for reporting
         self._discovered_actions: List[Dict[str, any]] = []
+        
+        # Track discovered grammatical patterns for reporting
+        self._discovered_patterns: List[Dict[str, any]] = []
         
         # Build concept name variations for better matching
         self._concept_variations = self._build_concept_variations()
@@ -220,6 +231,15 @@ class KnowledgeLinker:
         for text in text_content:
             self._extract_relationships_from_text(
                 text, 
+                entry.function_name,
+                quality_score
+            )
+        
+        # NEW: Extract grammatical patterns from documentation
+        if self.grammar_extractor and text_content:
+            all_text = ' '.join(text_content)
+            self._extract_grammatical_patterns(
+                all_text,
                 entry.function_name,
                 quality_score
             )
@@ -710,7 +730,87 @@ class KnowledgeLinker:
                 'confidence': action.confidence * base_confidence,
                 'source_function': function_name
             })
+        
+        # NEW: Discover and process action sequences
+        sequences = self.action_discoverer.discover_action_sequences(
+            source_code, function_name
+        )
+        self._process_action_sequences(sequences, function_name, base_confidence)
+    
+    def _process_action_sequences(self, sequences: List[Tuple], function_name: str,
+                                base_confidence: float):
+        """
+        Process discovered action sequences to create PRECEDES relationships.
+        
+        Args:
+            sequences: List of (action1, action2) tuples
+            function_name: Name of the function where sequences were found
+            base_confidence: Base confidence from documentation quality
+        """
+        for action1, action2 in sequences:
+            # Create PRECEDES relationship between the actions
+            # Note: We're treating actions as concepts that can have relationships
+            combined_confidence = min(action1.confidence, action2.confidence) * base_confidence
+            
+            self.bayesian_updater.update_sequence_belief(
+                action1.verb,
+                action2.verb,
+                'sequential_execution',
+                combined_confidence
+            )
+            
+            # Track for reporting
+            self._discovered_relationships.append({
+                'source': action1.verb.title(),
+                'target': action2.verb.title(),
+                'relation': 'PRECEDES',
+                'confidence': combined_confidence,
+                'evidence': f"{action1.verb} -> {action2.verb} in {function_name}",
+                'source_function': function_name
+            })
     
     def get_discovered_actions(self) -> List[Dict[str, any]]:
         """Get list of all discovered actions."""
         return self._discovered_actions.copy()
+    
+    def _extract_grammatical_patterns(self, text: str, function_name: str,
+                                    base_confidence: float):
+        """
+        Extract grammatical patterns from documentation text.
+        
+        This is the first step in discovering the mapping between language
+        and the knowledge graph - breaking sentences into Subject-Verb-Object triples.
+        
+        Args:
+            text: The documentation text to analyze
+            function_name: Name of the function being documented
+            base_confidence: Base confidence from documentation quality
+        """
+        if not self.grammar_extractor:
+            return
+        
+        # Extract patterns with context
+        patterns = self.grammar_extractor.extract_patterns_with_context(text, function_name)
+        
+        # Store the patterns for analysis (not yet connecting to graph)
+        for pattern in patterns:
+            # Log the discovered pattern
+            self.logger.debug(
+                f"Grammar pattern in {function_name}: {pattern} "
+                f"[confidence: {pattern.confidence:.2f}]"
+            )
+            
+            # Track for reporting
+            self._discovered_patterns.append({
+                'function': function_name,
+                'subject': pattern.subject,
+                'verb': pattern.verb,
+                'object': pattern.object,
+                'modifiers': pattern.modifiers,
+                'sentence': pattern.raw_sentence,
+                'confidence': pattern.confidence * base_confidence
+            })
+    
+    def get_discovered_patterns(self) -> List[Dict[str, any]]:
+        """Get list of all discovered grammatical patterns."""
+        return self._discovered_patterns.copy()

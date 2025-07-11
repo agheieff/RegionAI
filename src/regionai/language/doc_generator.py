@@ -289,3 +289,101 @@ class DocumentationGenerator:
                     }
         
         return best_relation
+    
+    def generate_behavioral_summary(self, function_name: str) -> str:
+        """
+        Generate a behavioral summary describing what actions the function performs.
+        
+        This method analyzes the concepts in a function and describes the key
+        actions (verbs) associated with those concepts based on PERFORMS
+        relationships in the knowledge graph.
+        
+        Args:
+            function_name: Name of the function to summarize
+            
+        Returns:
+            A human-readable summary describing the function's behavior
+        """
+        # Find concepts related to this function
+        related_concepts = self._find_function_concepts(function_name)
+        
+        if not related_concepts:
+            return f"The function '{function_name}' has no identified concepts or behaviors in the knowledge graph."
+        
+        # Take top 2-3 concepts
+        top_concepts = related_concepts[:min(3, len(related_concepts))]
+        
+        # Build behavioral descriptions for each concept
+        behavioral_parts = []
+        
+        for concept_name, concept_confidence in top_concepts:
+            # Find actions this concept performs
+            concept_actions = self._find_concept_actions(concept_name)
+            
+            if concept_actions:
+                # Take top 1-2 actions
+                top_actions = concept_actions[:min(2, len(concept_actions))]
+                
+                # Format action list
+                if len(top_actions) == 1:
+                    action_desc = f"'{top_actions[0][0]}'"
+                else:
+                    action_desc = f"'{top_actions[0][0]}' and '{top_actions[1][0]}'"
+                
+                # Build description for this concept
+                part = f"the '{concept_name.lower()}' concept, which primarily performs the actions {action_desc}"
+                behavioral_parts.append(part)
+            else:
+                # Concept has no known actions
+                part = f"the '{concept_name.lower()}' concept"
+                behavioral_parts.append(part)
+        
+        # Construct the full summary
+        if not behavioral_parts:
+            return self.generate_summary(function_name)  # Fallback to basic summary
+        
+        if len(behavioral_parts) == 1:
+            return f"This function focuses on {behavioral_parts[0]}."
+        elif len(behavioral_parts) == 2:
+            return f"This function focuses on {behavioral_parts[0]}. It also involves {behavioral_parts[1]}."
+        else:
+            # Multiple concepts
+            main_part = behavioral_parts[0]
+            other_parts = behavioral_parts[1:]
+            
+            # Format the list of other concepts
+            if len(other_parts) == 1:
+                others_desc = other_parts[0]
+            else:
+                others_desc = ", ".join(other_parts[:-1]) + f", and {other_parts[-1]}"
+            
+            return f"This function focuses on {main_part}. It also involves {others_desc}."
+    
+    def _find_concept_actions(self, concept_name: str) -> List[Tuple[str, float]]:
+        """
+        Find actions performed by a concept, sorted by confidence.
+        
+        Args:
+            concept_name: Name of the concept
+            
+        Returns:
+            List of (action_name, confidence) tuples sorted by confidence
+        """
+        concept = Concept(concept_name)
+        
+        # Get all relationships for this concept
+        relations = self.kg.get_relations_with_confidence(concept)
+        
+        # Filter for PERFORMS relationships
+        performs_actions = []
+        for rel in relations:
+            if str(rel['relation']) == "PERFORMS":
+                # Extract action name (target is an action concept)
+                action_name = str(rel['target']).lower()
+                confidence = rel['confidence']
+                performs_actions.append((action_name, confidence))
+        
+        # Sort by confidence descending
+        performs_actions.sort(key=lambda x: x[1], reverse=True)
+        
+        return performs_actions

@@ -312,3 +312,95 @@ class BayesianUpdater:
         
         # Update belief (performing action is always positive evidence)
         performs_metadata.alpha += evidence_strength
+    
+    def update_sequence_belief(
+        self,
+        action1_verb: str,
+        action2_verb: str,
+        evidence_type: str,
+        source_credibility: float = 0.8
+    ):
+        """
+        Updates the belief that one action precedes another in execution.
+        
+        This method creates or strengthens a "PRECEDES" relationship between
+        two actions, representing temporal/causal understanding of behavior.
+        
+        Args:
+            action1_verb: The action that comes first
+            action2_verb: The action that follows
+            evidence_type: Type of evidence (e.g., 'sequential_execution', 'control_flow')
+            source_credibility: A score from 0.0 to 1.0 representing the
+                               trustworthiness of the evidence source
+        """
+        # Create action concepts
+        action1 = Concept(action1_verb.title())
+        action2 = Concept(action2_verb.title())
+        
+        # Ensure both actions exist as concepts
+        if action1 not in self.kg:
+            from .graph import ConceptMetadata
+            action1_metadata = ConceptMetadata(
+                discovery_method='ACTION_VERB',
+                alpha=1.0,
+                beta=1.0,
+                properties={'is_action': True, 'verb_form': action1_verb}
+            )
+            self.kg.add_concept(action1, action1_metadata)
+        
+        if action2 not in self.kg:
+            from .graph import ConceptMetadata
+            action2_metadata = ConceptMetadata(
+                discovery_method='ACTION_VERB',
+                alpha=1.0,
+                beta=1.0,
+                properties={'is_action': True, 'verb_form': action2_verb}
+            )
+            self.kg.add_concept(action2, action2_metadata)
+        
+        # Check if PRECEDES relationship already exists
+        edge_data = self.kg.graph.get_edge_data(action1, action2)
+        precedes_metadata = None
+        
+        if edge_data:
+            # Look for existing PRECEDES relationship
+            for key, data in edge_data.items():
+                if data['label'] == Relation('PRECEDES'):
+                    precedes_metadata = data['metadata']
+                    break
+        
+        if precedes_metadata is None:
+            # Create new PRECEDES relationship
+            from .graph import RelationMetadata
+            precedes_metadata = RelationMetadata(
+                relation_type='PRECEDES',
+                alpha=1.0,  # Initial belief
+                beta=1.0    # Initial disbelief
+            )
+            self.kg.add_relation(
+                action1,
+                action2,
+                Relation('PRECEDES'),
+                metadata=precedes_metadata,
+                confidence=0.5,
+                evidence=f"{action1_verb} precedes {action2_verb}"
+            )
+            # Refresh metadata reference
+            edge_data = self.kg.graph.get_edge_data(action1, action2)
+            for key, data in edge_data.items():
+                if data['label'] == Relation('PRECEDES'):
+                    precedes_metadata = data['metadata']
+                    break
+        
+        # Calculate evidence strength based on type
+        base_strength = {
+            'sequential_execution': 1.5,      # Very strong evidence
+            'control_flow': 1.2,             # Strong evidence
+            'pattern_analysis': 0.8,         # Good evidence
+            'statistical_inference': 0.6     # Moderate evidence
+        }.get(evidence_type, 0.5)
+        
+        evidence_strength = base_strength * source_credibility
+        
+        # Update belief (sequential ordering is always positive evidence)
+        precedes_metadata.alpha += evidence_strength

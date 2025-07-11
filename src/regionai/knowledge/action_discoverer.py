@@ -25,6 +25,69 @@ class DiscoveredAction:
         return f"{self.concept}.{self.verb}()"
 
 
+class SequentialActionVisitor(ast.NodeVisitor):
+    """
+    AST visitor that preserves the sequential order of actions.
+    
+    This visitor traverses the AST in execution order, collecting
+    actions as they would be executed in the program flow.
+    """
+    
+    def __init__(self, discoverer: 'ActionDiscoverer'):
+        self.discoverer = discoverer
+        self.actions = []
+    
+    def visit_Call(self, node: ast.Call):
+        """Visit a function call node."""
+        # Handle method calls (e.g., obj.method())
+        if isinstance(node.func, ast.Attribute):
+            action = self.discoverer._extract_action_from_attribute(node.func)
+            if action:
+                self.actions.append(action)
+        
+        # Handle function calls that might indicate actions
+        elif isinstance(node.func, ast.Name):
+            action = self.discoverer._extract_action_from_function_call(node.func)
+            if action:
+                self.actions.append(action)
+        
+        # Continue visiting child nodes
+        self.generic_visit(node)
+    
+    def visit_For(self, node: ast.For):
+        """Visit for loop - preserve order but note it may repeat."""
+        # Visit the iterator first
+        self.visit(node.iter)
+        # Then the body
+        for stmt in node.body:
+            self.visit(stmt)
+        # Then else clause if present
+        for stmt in node.orelse:
+            self.visit(stmt)
+    
+    def visit_If(self, node: ast.If):
+        """Visit if statement - both branches may contain actions."""
+        # Visit condition
+        self.visit(node.test)
+        # Visit then branch
+        for stmt in node.body:
+            self.visit(stmt)
+        # Visit else branch
+        for stmt in node.orelse:
+            self.visit(stmt)
+    
+    def visit_While(self, node: ast.While):
+        """Visit while loop - similar to for loop."""
+        # Visit condition
+        self.visit(node.test)
+        # Visit body
+        for stmt in node.body:
+            self.visit(stmt)
+        # Visit else clause
+        for stmt in node.orelse:
+            self.visit(stmt)
+
+
 class ActionDiscoverer:
     """
     Discovers actions (verbs) from function bodies by analyzing AST.
@@ -88,45 +151,62 @@ class ActionDiscoverer:
         name_actions = self._extract_actions_from_name(function_name)
         discovered_actions.extend(name_actions)
         
-        # Remove duplicates while preserving order
-        unique_actions = []
-        seen = set()
-        for action in discovered_actions:
-            key = (action.verb, action.concept)
-            if key not in seen:
-                seen.add(key)
-                unique_actions.append(action)
+        # NOTE: We preserve order and DO NOT remove duplicates for sequential analysis
+        # The same action may occur multiple times in different parts of the code
+        # and maintaining this information is crucial for understanding flow
         
-        return unique_actions
+        return discovered_actions
+    
+    def discover_action_sequences(self, function_code: str, function_name: str) -> List[Tuple[DiscoveredAction, DiscoveredAction]]:
+        """
+        Discover sequential relationships between actions in a function.
+        
+        This method identifies which actions directly follow other actions,
+        forming the basis for PRECEDES relationships in the knowledge graph.
+        
+        Args:
+            function_code: The source code of the function
+            function_name: Name of the function being analyzed
+            
+        Returns:
+            List of (action1, action2) tuples representing sequences
+        """
+        # Get all actions in order
+        actions = self.discover_actions(function_code, function_name)
+        
+        if len(actions) < 2:
+            return []
+        
+        # Build sequences from consecutive actions
+        sequences = []
+        for i in range(len(actions) - 1):
+            current = actions[i]
+            next_action = actions[i + 1]
+            
+            # Only create sequence if both actions have reasonable confidence
+            if current.confidence >= 0.6 and next_action.confidence >= 0.6:
+                sequences.append((current, next_action))
+        
+        return sequences
     
     def _analyze_function_body(self, func_node: ast.FunctionDef) -> List[DiscoveredAction]:
         """
         Analyze a function's body to find method calls and extract actions.
         
+        IMPORTANT: This method preserves the order of actions as they appear
+        in the code for sequential analysis.
+        
         Args:
             func_node: AST node representing the function
             
         Returns:
-            List of discovered actions
+            List of discovered actions in order of appearance
         """
-        actions = []
+        # Use a custom visitor to preserve execution order
+        visitor = SequentialActionVisitor(self)
+        visitor.visit(func_node)
         
-        # Walk through all nodes in the function body
-        for node in ast.walk(func_node):
-            if isinstance(node, ast.Call):
-                # Handle method calls (e.g., obj.method())
-                if isinstance(node.func, ast.Attribute):
-                    action = self._extract_action_from_attribute(node.func)
-                    if action:
-                        actions.append(action)
-                
-                # Handle function calls that might indicate actions
-                elif isinstance(node.func, ast.Name):
-                    action = self._extract_action_from_function_call(node.func)
-                    if action:
-                        actions.append(action)
-        
-        return actions
+        return visitor.actions
     
     def _extract_action_from_attribute(self, attr_node: ast.Attribute) -> Optional[DiscoveredAction]:
         """

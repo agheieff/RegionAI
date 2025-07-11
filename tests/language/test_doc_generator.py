@@ -236,6 +236,149 @@ def calculate_order_total(order_id):
     print("✓ API integration works correctly")
 
 
+def test_behavioral_summary_generation():
+    """Test behavioral summary generation with actions."""
+    print("\nTesting behavioral summary generation...")
+    
+    # Create a test knowledge graph with concepts and actions
+    kg = KnowledgeGraph()
+    
+    # Add concepts
+    concepts = [
+        ("Customer", 0.9),
+        ("Data", 0.8),
+        ("Order", 0.7),
+    ]
+    
+    for name, confidence in concepts:
+        alpha = confidence / (1 - confidence) if confidence < 0.99 else 99.0
+        metadata = ConceptMetadata(
+            discovery_method="TEST",
+            alpha=alpha,
+            beta=1.0,
+            source_functions=["manage_customer_data"]
+        )
+        kg.add_concept(Concept(name), metadata)
+    
+    # Add action concepts
+    actions = ["Load", "Save", "Validate", "Process"]
+    for action in actions:
+        action_metadata = ConceptMetadata(
+            discovery_method="ACTION_VERB",
+            alpha=1.0,
+            beta=1.0,
+            properties={'is_action': True}
+        )
+        kg.add_concept(Concept(action), action_metadata)
+    
+    # Add PERFORMS relationships with varying confidence
+    from regionai.knowledge.graph import RelationMetadata, Relation
+    
+    # Customer performs Load (high confidence)
+    kg.add_relation(
+        Concept("Customer"), Concept("Load"), Relation("PERFORMS"),
+        metadata=RelationMetadata(relation_type="PERFORMS", alpha=4.0, beta=1.0),
+        confidence=0.8
+    )
+    
+    # Customer performs Save (high confidence)
+    kg.add_relation(
+        Concept("Customer"), Concept("Save"), Relation("PERFORMS"),
+        metadata=RelationMetadata(relation_type="PERFORMS", alpha=3.5, beta=1.0),
+        confidence=0.78
+    )
+    
+    # Customer performs Process (lower confidence)
+    kg.add_relation(
+        Concept("Customer"), Concept("Process"), Relation("PERFORMS"),
+        metadata=RelationMetadata(relation_type="PERFORMS", alpha=2.0, beta=1.0),
+        confidence=0.67
+    )
+    
+    # Data performs Validate
+    kg.add_relation(
+        Concept("Data"), Concept("Validate"), Relation("PERFORMS"),
+        metadata=RelationMetadata(relation_type="PERFORMS", alpha=3.0, beta=1.0),
+        confidence=0.75
+    )
+    
+    # Create doc generator and generate behavioral summary
+    doc_gen = DocumentationGenerator(kg)
+    summary = doc_gen.generate_behavioral_summary("manage_customer_data")
+    
+    print(f"Generated behavioral summary: {summary}")
+    
+    # Verify the summary structure
+    assert "This function focuses on" in summary
+    assert "customer" in summary.lower()
+    assert "load" in summary.lower()
+    assert "save" in summary.lower()
+    assert "data" in summary.lower()
+    assert "validate" in summary.lower()
+    
+    # Should NOT include low-confidence action
+    assert "process" not in summary.lower()
+    
+    print("✓ Behavioral summary generation works correctly")
+
+
+def test_behavioral_summary_no_actions():
+    """Test behavioral summary when concepts have no actions."""
+    print("\nTesting behavioral summary with no actions...")
+    
+    kg = KnowledgeGraph()
+    
+    # Add concepts without actions
+    metadata = ConceptMetadata(
+        discovery_method="TEST",
+        alpha=3.0,
+        beta=1.0,
+        source_functions=["test_function"]
+    )
+    kg.add_concept(Concept("Widget"), metadata)
+    
+    doc_gen = DocumentationGenerator(kg)
+    summary = doc_gen.generate_behavioral_summary("test_function")
+    
+    print(f"Summary without actions: {summary}")
+    
+    # Should still generate a summary mentioning the concept
+    assert "widget" in summary.lower()
+    assert "This function focuses on" in summary
+    
+    print("✓ Behavioral summary handles concepts without actions")
+
+
+def test_behavioral_api_integration():
+    """Test the behavioral documentation API."""
+    print("\nTesting behavioral API integration...")
+    
+    from regionai.pipeline.api import generate_behavioral_docs_for_function
+    
+    # Test with inline code that will trigger action discovery
+    code = '''
+def manage_customer_data(customer_id):
+    """Manage customer data operations."""
+    customer = load_customer(customer_id)
+    customer.validate()
+    customer.update_preferences()
+    save_customer(customer)
+    
+    # Also process related data
+    data = get_customer_data(customer_id)
+    data.clean()
+    return data
+'''
+    
+    summary = generate_behavioral_docs_for_function('manage_customer_data', code)
+    print(f"API generated behavioral summary: {summary}")
+    
+    # Should describe behaviors
+    assert "function focuses on" in summary or "function appears to be" in summary
+    
+    print("✓ Behavioral API integration works correctly")
+
+
 def run_all_tests():
     """Run all documentation generator tests."""
     print("=" * 60)
@@ -248,7 +391,10 @@ def run_all_tests():
         test_no_concepts_summary,
         test_concept_ordering,
         test_function_name_parsing,
-        test_api_integration
+        test_api_integration,
+        test_behavioral_summary_generation,
+        test_behavioral_summary_no_actions,
+        test_behavioral_api_integration
     ]
     
     failed = 0

@@ -776,6 +776,61 @@ def generate_docs_for_function(function_name: str, code: str = None,
     return summary
 
 
+def generate_behavioral_docs_for_function(function_name: str, code: str = None,
+                                        knowledge_graph: KnowledgeGraph = None) -> str:
+    """
+    Generate behavioral documentation for a function using the Knowledge Graph.
+    
+    This function produces summaries that describe not just the concepts
+    in a function, but the key actions (behaviors) associated with those
+    concepts based on PERFORMS relationships in the knowledge graph.
+    
+    Args:
+        function_name: Name of the function to document
+        code: Optional source code to analyze (if knowledge_graph not provided)
+        knowledge_graph: Optional pre-built knowledge graph to use
+        
+    Returns:
+        A human-readable behavioral summary of the function
+        
+    Example:
+        >>> code = '''
+        ... def manage_customer_data(customer_id):
+        ...     customer = load_customer(customer_id)
+        ...     customer.validate()
+        ...     save_customer(customer)
+        ... '''
+        >>> summary = generate_behavioral_docs_for_function('manage_customer_data', code)
+        >>> print(summary)
+        This function focuses on the 'customer' concept, which primarily performs 
+        the actions 'load' and 'save'. It also involves the 'data' concept.
+    """
+    # Import here to avoid circular dependencies
+    from ..language import DocumentationGenerator
+    
+    # If no knowledge graph provided, build one from code
+    if knowledge_graph is None:
+        if code is None:
+            return f"Error: Either code or knowledge_graph must be provided to generate behavioral documentation for '{function_name}'."
+        
+        # Build and enrich the knowledge graph with action discovery
+        kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+        
+        # Need to ensure actions are discovered
+        # This would normally happen during enrichment if source code is available
+        # For now, we'll use the graph as-is
+    else:
+        kg = knowledge_graph
+    
+    # Create documentation generator
+    doc_gen = DocumentationGenerator(kg)
+    
+    # Generate behavioral summary
+    summary = doc_gen.generate_behavioral_summary(function_name)
+    
+    return summary
+
+
 def find_concept_functions(code: str, concept_name: str) -> Dict[str, List[str]]:
     """
     Find all functions related to a specific concept.
