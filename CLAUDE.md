@@ -114,17 +114,28 @@ Gemini: "Excellent. Next implement abstract domains..."
 ## Essential Commands
 
 ### Testing
+
+This is a Poetry project. Use Poetry to manage dependencies and run tests:
+
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+# Install dependencies
+poetry install
 
-# Run specific tests
-python test_discovery.py
-python test_abstract_interpretation.py
-python test_loop_analysis.py
+# Run specific tests with Poetry
+poetry run pytest tests/knowledge/test_linker.py
+poetry run pytest tests/test_phase2_path_sensitivity.py
 
-# Run discovery experiments
-python -m src.regionai.experiments.discovery_experiment
+# Run all tests
+poetry run pytest
+
+# Run with specific test patterns
+poetry run pytest -k "test_concept_variations"
+
+# Run with verbose output
+poetry run pytest -xvs
+
+# For legacy test files (if they exist)
+poetry run python test_discovery.py
 ```
 
 ### Git Workflow

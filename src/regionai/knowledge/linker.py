@@ -314,18 +314,50 @@ class KnowledgeLinker:
         Returns:
             True if the pattern matches
         """
-        # Build pattern with actual concept names
-        source_variations = self._get_concept_name_variations(source_concept)
-        target_variations = self._get_concept_name_variations(target_concept)
+        # Instead of trying to modify the pattern template, we'll check if the
+        # actual words found in the sentence match the pattern
+        sentence_lower = sentence.lower()
         
-        for source_var in source_variations:
-            for target_var in target_variations:
-                pattern = pattern_template.format(
-                    source=re.escape(source_var),
-                    target=re.escape(target_var)
-                )
+        # Find all occurrences of the concepts in the sentence
+        source_occurrences = []
+        target_occurrences = []
+        
+        # Check all variations of source concept
+        for variation, concept in self._concept_variations.items():
+            if concept == source_concept:
+                # Use word boundaries to find exact matches
+                pattern = r'\b' + re.escape(variation) + r'\b'
+                for match in re.finditer(pattern, sentence_lower):
+                    source_occurrences.append((match.group(), match.start(), match.end()))
+                    
+            elif concept == target_concept:
+                pattern = r'\b' + re.escape(variation) + r'\b'
+                for match in re.finditer(pattern, sentence_lower):
+                    target_occurrences.append((match.group(), match.start(), match.end()))
+        
+        # Now check if any combination of source and target occurrences
+        # matches the relationship pattern
+        for source_word, s_start, s_end in source_occurrences:
+            for target_word, t_start, t_end in target_occurrences:
+                # Build a pattern using the actual words found
+                # Replace {source} and {target} with the actual words
+                # But we need to handle the regex parts of the pattern template
                 
-                if re.search(pattern, sentence, re.IGNORECASE):
+                # Split the pattern template to handle {source} and {target} separately
+                # This is a more robust approach
+                test_pattern = pattern_template
+                
+                # Replace {source}s? with a pattern that matches the actual source word
+                # Since we found the actual word, we don't need the s? part
+                test_pattern = test_pattern.replace('{source}s?', re.escape(source_word))
+                test_pattern = test_pattern.replace('{source}', re.escape(source_word))
+                
+                # Same for target
+                test_pattern = test_pattern.replace('{target}s?', re.escape(target_word))
+                test_pattern = test_pattern.replace('{target}', re.escape(target_word))
+                
+                # Now test if this pattern matches the sentence
+                if re.search(test_pattern, sentence_lower):
                     return True
         
         return False
