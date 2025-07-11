@@ -157,13 +157,13 @@ class FixpointAnalyzer:
             Mapping from block IDs to their final abstract states
         """
         # Initialize entry block with initial state
-        if self.cfg.entry_block:
+        if self.cfg.entry_block is not None:
             entry_state = AnalysisState(
                 abstract_state=initial_state,
                 iteration_count=0
             )
-            self.block_states[self.cfg.entry_block.id] = entry_state
-            self.worklist.add(self.cfg.entry_block.id)
+            self.block_states[self.cfg.entry_block] = entry_state
+            self.worklist.add(self.cfg.entry_block)
         
         # Fixpoint iteration
         iteration = 0

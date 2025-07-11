@@ -113,6 +113,7 @@ def check_null_dereference(node: ast.AST, context=None) -> List[str]:
                     null_state = self.context.abstract_state.get_nullability(node.value.id)
                 else:
                     null_state = get_nullability_state(node.value.id)
+                
                     
                 if null_state == Nullability.DEFINITELY_NULL:
                     errors.append(f"Null pointer exception: {node.value.id} is null")

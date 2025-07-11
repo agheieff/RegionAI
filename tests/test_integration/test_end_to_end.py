@@ -6,24 +6,24 @@ import torch
 import ast
 from typing import List, Dict, Any
 
-from src.regionai.discovery.transformation import Transformation
-from src.regionai.discovery import (
+from regionai.discovery.transformation import Transformation
+from regionai.discovery import (
     PRIMITIVE_TRANSFORMATIONS,
     STRUCTURED_DATA_PRIMITIVES,
     AST_PRIMITIVES
 )
-from src.regionai.discovery.discovery import DiscoveryEngine
-from src.regionai.data.problem import Problem
-from src.regionai.analysis import (
+from regionai.discovery.discovery import DiscoveryEngine
+from regionai.data.problem import Problem
+from regionai.analysis import (
     build_cfg, analyze_with_fixpoint,
     build_call_graph
 )
-from src.regionai.analysis.interprocedural import analyze_interprocedural
-from src.regionai.discovery.abstract_domains import (
-    Sign, Nullability, reset_abstract_state,
+from regionai.analysis.interprocedural import analyze_interprocedural
+from regionai.discovery.abstract_domains import (
+    Sign, Nullability,
     check_null_dereference, prove_property
 )
-from src.regionai.discovery.range_domain import check_array_bounds
+from regionai.discovery.range_domain import check_array_bounds
 
 
 class TestCompleteAnalysisPipeline:
@@ -266,21 +266,9 @@ def caller():
     
     def test_global_state_reset(self):
         """Test that global state is properly reset."""
-        # Run analysis twice
-        code1 = "x = 5"
-        code2 = "y = 10"
-        
-        reset_abstract_state()
-        tree1 = ast.parse(code1)
-        result1 = prove_property(tree1, {})
-        
-        reset_abstract_state()
-        tree2 = ast.parse(code2)
-        result2 = prove_property(tree2, {})
-        
-        # Results should be independent
-        assert 'x' not in result2
-        assert 'y' not in result1
+        # This test is no longer relevant since we removed global state
+        # Each analysis now uses its own AnalysisContext
+        pytest.skip("Global state has been removed - each analysis uses its own context")
 
 
 if __name__ == "__main__":

@@ -281,7 +281,7 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
     
     def __init__(self, cfg, call_graph, summary_computer, context: AnalysisContext,
                  fingerprinter=None, semantic_fingerprints=None):
-        super().__init__(cfg)
+        super().__init__(cfg, context)
         self.call_graph = call_graph
         self.summary_computer = summary_computer
         self.context = context  # Use context instead of error/warning lists
@@ -301,16 +301,27 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         current_state = input_state.copy()
         
         for stmt in block.statements:
+            # Skip function definitions and other non-executable statements
+            if isinstance(stmt, (ast.FunctionDef, ast.ClassDef)):
+                continue
+            
             if isinstance(stmt, ast.Assign):
                 # Check if RHS is a function call
                 if isinstance(stmt.value, ast.Call):
                     self._handle_function_call(stmt, current_state)
                 else:
                     # Regular assignment - use context-aware function
-                    analyze_assignment(stmt, self.context)
+                    # Create a temporary context with current state for this assignment
+                    temp_context = AnalysisContext()
+                    temp_context.abstract_state = current_state.abstract_state
+                    analyze_assignment(stmt, temp_context)
+                    # Update current state from the temporary context
+                    current_state.abstract_state = temp_context.abstract_state
             
-            # Check for null dereferences
-            self._check_null_safety(stmt, self.context)
+            # Check for null dereferences with current state
+            temp_context = AnalysisContext()
+            temp_context.abstract_state = current_state.abstract_state
+            self._check_null_safety(stmt, temp_context)
         
         return current_state
     
@@ -369,6 +380,10 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
                 # Check the summary computer's context cache
                 summary = self.summary_computer.context_summaries[context]
                 self._apply_function_summary(assign_stmt, summary, state)
+            elif callee_name in self.summary_computer.summaries:
+                # Check if we have a context-insensitive summary
+                summary = self.summary_computer.summaries[callee_name]
+                self._apply_function_summary(assign_stmt, summary, state)
             else:
                 # No summary for this context yet
                 # Add to worklist for analysis if we know about the function
@@ -418,9 +433,9 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         errors = check_null_dereference(stmt, context)
         for error in errors:
             if "exception" in error:
-                context.add_error(error)
+                self.context.add_error(error)  # Add to main context, not temp
             else:
-                context.add_warning(error)
+                self.context.add_warning(error)  # Add to main context, not temp
     
     def _create_callee_initial_state(self, callee_name: str, 
                                    arg_states: List[AbstractState]) -> AbstractState:
