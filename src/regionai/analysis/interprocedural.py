@@ -439,26 +439,87 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
     
     def _create_callee_initial_state(self, callee_name: str, 
                                    arg_states: List[AbstractState]) -> AbstractState:
-        """Create initial state for callee based on arguments."""
-        # This would map argument states to parameter names
-        # For now, return a simple combined state
+        """
+        Create initial state for callee based on arguments.
+        
+        Maps argument states to the function's parameter names using the
+        actual function signature.
+        """
         combined = AbstractState()
         
-        # In a real implementation, would map to parameter names
+        # Get the function definition to know parameter names
+        func_ast = self.function_asts.get(callee_name)
+        if not func_ast or not hasattr(func_ast, 'args'):
+            # Fallback to simple numbered parameters if we can't find the function
+            for i, arg_state in enumerate(arg_states):
+                self._merge_argument_state(combined, arg_state, f'param_{i}')
+            return combined
+        
+        # Get parameter names from function signature
+        func_args = func_ast.args
+        param_names = [arg.arg for arg in func_args.args]
+        
+        # Map positional arguments to parameters
         for i, arg_state in enumerate(arg_states):
-            # Merge all argument states (simplified)
-            for var, sign in arg_state.sign_state.items():
-                if var == '__const__':
-                    # Map to parameter name (would need function signature)
-                    param_name = f'param_{i}'
-                    combined.sign_state[param_name] = sign
-            
-            for var, null in arg_state.null_state.items():
-                if var == '__const__':
-                    param_name = f'param_{i}'
-                    combined.null_state[param_name] = null
+            if i < len(param_names):
+                param_name = param_names[i]
+                self._merge_argument_state(combined, arg_state, param_name)
+            else:
+                # Extra arguments (could be *args in the future)
+                self._merge_argument_state(combined, arg_state, f'extra_arg_{i}')
+        
+        # Handle parameters with no corresponding arguments (use default or TOP)
+        for i in range(len(arg_states), len(param_names)):
+            param_name = param_names[i]
+            # Check if parameter has a default value
+            if i - len(arg_states) < len(func_args.defaults):
+                default = func_args.defaults[i - len(arg_states)]
+                if isinstance(default, ast.Constant):
+                    # Set state based on default value
+                    combined.set_nullability(param_name, 
+                                           Nullability.DEFINITELY_NULL if default.value is None 
+                                           else Nullability.NOT_NULL)
+                    if isinstance(default.value, (int, float)):
+                        if default.value > 0:
+                            combined.set_sign(param_name, Sign.POSITIVE)
+                        elif default.value < 0:
+                            combined.set_sign(param_name, Sign.NEGATIVE)
+                        else:
+                            combined.set_sign(param_name, Sign.ZERO)
+                else:
+                    # Non-constant default, assume TOP
+                    combined.set_sign(param_name, Sign.TOP)
+                    combined.set_nullability(param_name, Nullability.NULLABLE)
+            else:
+                # No default, parameter is required but missing
+                # This would be a runtime error, but for analysis assume TOP
+                combined.set_sign(param_name, Sign.TOP)
+                combined.set_nullability(param_name, Nullability.NULLABLE)
         
         return combined
+    
+    def _merge_argument_state(self, target: AbstractState, arg_state: AbstractState, param_name: str):
+        """Helper to merge argument state into target state for a specific parameter."""
+        # Handle sign state
+        for var, sign in arg_state.sign_state.items():
+            if var == '__const__' or len(arg_state.sign_state) == 1:
+                # This is a constant or single-value state
+                target.sign_state[param_name] = sign
+                break
+        
+        # Handle nullability state
+        for var, null in arg_state.null_state.items():
+            if var == '__const__' or len(arg_state.null_state) == 1:
+                # This is a constant or single-value state
+                target.null_state[param_name] = null
+                break
+        
+        # Handle range state if present
+        if hasattr(arg_state, 'range_state'):
+            for var, range_val in arg_state.range_state.items():
+                if var == '__const__' or len(arg_state.range_state) == 1:
+                    target.range_state[param_name] = range_val
+                    break
 
 
 def analyze_interprocedural(tree: ast.AST, source_code: Optional[str] = None) -> AnalysisResult:

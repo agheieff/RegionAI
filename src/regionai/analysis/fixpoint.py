@@ -236,28 +236,35 @@ class FixpointAnalyzer:
         return result
     
     def _analyze_block(self, block: BasicBlock, input_state: AnalysisState) -> AnalysisState:
-        """Analyze a basic block with the given input state."""
+        """
+        Analyze a basic block with the given input state.
+        
+        Creates a temporary context for this block's analysis to avoid
+        modifying the shared context.
+        """
         # Start with copy of input state
         current_state = input_state.copy()
         
-        # Temporarily set the context's abstract state to this block's state
-        old_abstract_state = self.context.abstract_state
-        self.context.abstract_state = current_state.abstract_state
+        # Create a temporary context for this block's analysis
+        from .context import AnalysisContext
+        block_context = AnalysisContext()
         
-        try:
-            # Analyze each statement
-            for stmt in block.statements:
-                if isinstance(stmt, ast.Assign):
-                    # Use the context-aware analyze_assignment
-                    analyze_assignment(stmt, self.context)
+        # Copy configuration and other shared data from the main context
+        block_context.config = self.context.config
+        block_context.errors = self.context.errors  # Share error list
+        block_context.warnings = self.context.warnings  # Share warning list
+        
+        # Set the block's current state
+        block_context.abstract_state = current_state.abstract_state
+        
+        # Analyze each statement with the temporary context
+        for stmt in block.statements:
+            if isinstance(stmt, ast.Assign):
+                # Use the context-aware analyze_assignment
+                analyze_assignment(stmt, block_context)
                     
-            # The abstract state in context has been modified by analyze_assignment
-            # Copy it back to the current state
-            current_state.abstract_state = self.context.abstract_state
-            
-        finally:
-            # Restore the old abstract state
-            self.context.abstract_state = old_abstract_state
+        # Copy the modified state back to the result
+        current_state.abstract_state = block_context.abstract_state
                 
         return current_state
 
