@@ -11,6 +11,8 @@ from .projection_model import (
     create_projection_model, ModelCheckpoint
 )
 from .trainer import ProjectionTrainer, LanguageBridgeTrainer
+from .nlp_extractor import NLPExtractor
+from .doc_generator import DocumentationGenerator
 
 __all__ = [
     # Vectorizers
@@ -26,4 +28,8 @@ __all__ = [
     # Trainers
     'ProjectionTrainer',
     'LanguageBridgeTrainer',
+    # NLP
+    'NLPExtractor',
+    # Documentation
+    'DocumentationGenerator',
 ]

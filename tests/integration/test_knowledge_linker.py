@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from regionai.pipeline.api import (
     build_knowledge_graph, discover_domain_model
 )
+from regionai.knowledge.graph import Concept, Relation
 
 
 def test_enriched_knowledge_graph():
@@ -365,6 +366,183 @@ def assign_project_member(project_id, user_id, role):
     print("✓ Multiple documentation sources processed successfully")
 
 
+def test_semantic_relationship_inference():
+    """Test that co-occurring concepts form relationships."""
+    print("\nTesting semantic relationship inference...")
+    
+    # Test with a function that has multiple concepts in name and docs
+    code = '''
+def get_customer_order_details(customer_id, order_id):
+    """
+    Retrieves detailed information about a customer's order.
+    
+    This function fetches the complete order details including
+    the customer information, order items, and shipping details.
+    It combines data from multiple sources to provide a comprehensive
+    view of the customer's order.
+    """
+    customer = fetch_customer(customer_id)
+    order = fetch_order(order_id)
+    # Merge customer and order data with shipping details
+    details = {
+        'customer': customer,
+        'order': order,
+        'shipping': get_shipping_info(order_id)
+    }
+    return details
+
+def update_customer_shipping_address(customer_id, shipping_address):
+    """
+    Updates the shipping address for a customer.
+    
+    The shipping address is used for all future orders
+    placed by this customer.
+    """
+    customer = get_customer(customer_id)
+    customer['shipping_address'] = shipping_address
+    save_customer(customer)
+'''
+    
+    # Build the knowledge graph with enrichment
+    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    
+    # Check that concepts were discovered
+    assert "Customer" in kg, "Customer concept should be discovered"
+    assert "Order" in kg, "Order concept should be discovered"
+    assert "Details" in kg, "Details concept should be discovered"
+    assert "Shipping" in kg, "Shipping concept should be discovered"
+    
+    # Check that relationships exist between co-occurring concepts
+    # Get all edges in the graph
+    edges = list(kg.graph.edges(data=True))
+    
+    # Helper function to check if a relationship exists
+    def has_relationship(concept1: str, concept2: str, rel_type: str = "RELATED_TO") -> bool:
+        c1 = Concept(concept1)
+        c2 = Concept(concept2)
+        
+        # Check both directions
+        for source, target, data in edges:
+            if ((source == c1 and target == c2) or (source == c2 and target == c1)):
+                if data.get('label') == Relation(rel_type):
+                    return True
+        return False
+    
+    # Check specific co-occurrence relationships
+    assert has_relationship("Customer", "Order"), \
+        "Customer and Order should be related (co-occur in function name)"
+    assert has_relationship("Customer", "Details"), \
+        "Customer and Details should be related (co-occur in function name)"
+    assert has_relationship("Order", "Details"), \
+        "Order and Details should be related (co-occur in function name)"
+    assert has_relationship("Customer", "Shipping"), \
+        "Customer and Shipping should be related (co-occur in text)"
+    
+    # Check that these relationships have updated certainty
+    customer_rels = kg.get_relations_with_confidence("Customer")
+    
+    # Find RELATED_TO relationships
+    related_rels = [r for r in customer_rels if str(r['relation']) == "RELATED_TO"]
+    assert len(related_rels) > 0, "Customer should have RELATED_TO relationships"
+    
+    # Check that at least one has confidence > 0.5
+    high_confidence_rel = any(r['confidence'] > 0.5 for r in related_rels)
+    assert high_confidence_rel, "At least one RELATED_TO relationship should have confidence > 0.5"
+    
+    # Print some relationships for verification
+    print(f"✓ Found {len(related_rels)} RELATED_TO relationships for Customer")
+    for rel in related_rels[:3]:  # Show first 3
+        print(f"  Customer -> {rel['target']} (confidence: {rel['confidence']:.3f})")
+    
+    print("✓ Semantic relationship inference works correctly")
+
+
+def test_bayesian_belief_updates():
+    """Test that concept certainty scores increase with evidence."""
+    print("\nTesting Bayesian belief updates...")
+    
+    # Test with an empty knowledge graph starting point
+    code = '''
+def get_customer_record(customer_id):
+    """
+    Retrieves a customer record from the database.
+    
+    Each customer has a unique record that contains their
+    contact information, purchase history, and preferences.
+    """
+    record = fetch_from_db('customers', customer_id)
+    return record
+
+def update_customer_preferences(customer_id, preferences):
+    """
+    Updates the preferences for a customer.
+    
+    Customer preferences include notification settings,
+    favorite categories, and delivery options.
+    """
+    # Update customer record with new preferences
+    customer = get_customer_record(customer_id)
+    customer['preferences'] = preferences
+    save_customer(customer)
+    return customer
+
+def create_customer(name, email):
+    """Creates a new customer in the system."""
+    customer = {
+        'name': name,
+        'email': email,
+        'created_at': datetime.now()
+    }
+    # New customers get default preferences
+    customer['preferences'] = get_default_preferences()
+    return save_customer(customer)
+'''
+    
+    # Build the knowledge graph with enrichment
+    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    
+    # Check that 'Customer' and 'Record' concepts exist
+    assert "Customer" in kg, "Customer concept should be discovered"
+    assert "Record" in kg, "Record concept should be discovered"
+    
+    # Get the metadata for these concepts
+    customer_metadata = kg.get_concept_metadata("Customer")
+    record_metadata = kg.get_concept_metadata("Record")
+    
+    assert customer_metadata is not None, "Customer should have metadata"
+    assert record_metadata is not None, "Record should have metadata"
+    
+    # Check that certainty (confidence) is greater than initial value
+    # Initial uniform distribution has confidence = 0.5 (alpha=1, beta=1)
+    assert customer_metadata.confidence > 0.5, \
+        f"Customer confidence ({customer_metadata.confidence}) should be > 0.5"
+    assert record_metadata.confidence > 0.5, \
+        f"Record confidence ({record_metadata.confidence}) should be > 0.5"
+    
+    # Check that concepts mentioned more frequently have higher confidence
+    # 'Customer' appears in all three function names, 'Record' appears once
+    assert customer_metadata.confidence > record_metadata.confidence, \
+        "Customer (mentioned more) should have higher confidence than Record"
+    
+    print(f"✓ Customer concept confidence: {customer_metadata.confidence:.3f}")
+    print(f"✓ Record concept confidence: {record_metadata.confidence:.3f}")
+    print(f"✓ Customer alpha/beta: {customer_metadata.alpha:.2f}/{customer_metadata.beta:.2f}")
+    print(f"✓ Record alpha/beta: {record_metadata.alpha:.2f}/{record_metadata.beta:.2f}")
+    
+    # Test relationships also have updated beliefs
+    customer_rels = kg.get_relations_with_confidence("Customer")
+    if customer_rels:
+        # Find any relationship involving Record
+        record_rel = next(
+            (r for r in customer_rels if "Record" in str(r['target'])),
+            None
+        )
+        if record_rel:
+            print(f"✓ Customer->Record relationship confidence: {record_rel['confidence']:.3f}")
+    
+    print("✓ Bayesian belief updates work correctly")
+
+
 def run_all_tests():
     """Run all integration tests."""
     print("=" * 60)
@@ -375,7 +553,9 @@ def run_all_tests():
         test_enriched_knowledge_graph,
         test_domain_model_with_enrichment,
         test_confidence_and_evidence,
-        test_integration_with_multiple_sources
+        test_integration_with_multiple_sources,
+        test_semantic_relationship_inference,
+        test_bayesian_belief_updates
     ]
     
     failed = 0

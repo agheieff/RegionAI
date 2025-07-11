@@ -9,48 +9,11 @@ import re
 from typing import Dict, List, Set, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
-import spacy
 
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import Behavior
 from .graph import KnowledgeGraph, Concept, Relation, ConceptMetadata, RelationMetadata
-
-
-# Common programming verbs that should not be considered as domain concepts
-COMMON_PROGRAMMING_VERBS = {
-    'get', 'set', 'create', 'update', 'delete', 'is', 'has', 
-    'check', 'validate', 'process', 'handle', 'do', 'make',
-    'add', 'remove', 'fetch', 'save', 'load', 'read', 'write',
-    'build', 'generate', 'convert', 'transform', 'parse',
-    'init', 'setup', 'configure', 'register', 'unregister',
-    'start', 'stop', 'run', 'execute', 'call', 'invoke',
-    'find', 'search', 'list', 'count', 'exists', 'contains',
-    'creates', 'gets', 'sets', 'updates', 'deletes',
-    'assign', 'assigns', 'assigned', 'manager', 'self',
-    'belong', 'belongs', 'establishes', 'establish'
-}
-
-# Common programming terms that should not be considered as domain concepts
-COMMON_PROGRAMMING_TERMS = {
-    'function', 'method', 'class', 'variable', 'parameter', 'argument',
-    'return', 'value', 'type', 'object', 'instance', 'array', 'list',
-    'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
-    'true', 'false', 'none', 'null', 'error', 'exception',
-    'new', 'old', 'one', 'two', 'three', 'first', 'last', 'next',
-    'single', 'multiple', 'few', 'many', 'all', 'some', 'any',
-    'record', 'records', 'item', 'items', 'entity', 'entities',
-    'field', 'fields', 'attribute', 'attributes', 'property', 'properties'
-}
-
-# Common skip words (determiners, pronouns, etc.) for text analysis
-COMMON_SKIP_WORDS = {
-    'this', 'that', 'these', 'those', 'each', 'every', 'all',
-    'some', 'any', 'many', 'few', 'several', 'both', 'either',
-    'neither', 'when', 'where', 'what', 'which', 'who', 'how',
-    'items', 'item', 'data', 'info', 'information', 'record',
-    'records', 'object', 'objects', 'entity', 'entities',
-    'thing', 'things', 'something', 'one', 'ones'
-}
+from ..language.nlp_extractor import NLPExtractor
 
 
 @dataclass
@@ -125,13 +88,13 @@ class ConceptDiscoverer:
         self._discovered_patterns: List[CRUDPattern] = []
         self._noun_frequencies: Dict[str, int] = defaultdict(int)
         
-        # Initialize spaCy for proper NLP-based noun extraction
+        # Initialize NLP extractor
         try:
-            self.nlp = spacy.load("en_core_web_sm")
+            self.nlp_extractor = NLPExtractor()
         except OSError:
             # Fallback if model not available
-            print("Warning: spaCy model 'en_core_web_sm' not found. Using basic extraction.")
-            self.nlp = None
+            print("Warning: spaCy model not found. Using basic extraction.")
+            self.nlp_extractor = None
     
     def discover_concepts(self) -> KnowledgeGraph:
         """
@@ -245,14 +208,23 @@ class ConceptDiscoverer:
         
         for noun, frequency in self._noun_frequencies.items():
             if frequency >= threshold:
-                # Filter out common programming terms and verbs
-                if not self._is_programming_term(noun) and noun.lower() not in COMMON_PROGRAMMING_VERBS:
+                # Filter out common programming terms
+                if not self._is_programming_term(noun):
                     concepts.add(noun.title())
         
         return concepts
     
     def _extract_nouns_from_identifier(self, identifier: str) -> List[str]:
         """Extract potential nouns from snake_case or camelCase identifiers."""
+        if self.nlp_extractor:
+            # Use intelligent NLP-based extraction
+            return self.nlp_extractor.extract_nouns_from_identifier(identifier)
+        else:
+            # Fallback to basic extraction
+            return self._extract_nouns_simple_fallback(identifier)
+    
+    def _extract_nouns_simple_fallback(self, identifier: str) -> List[str]:
+        """Simple fallback noun extraction when NLP is not available."""
         # First split by underscore
         underscore_parts = identifier.split('_')
         all_parts = []
@@ -267,50 +239,39 @@ class ConceptDiscoverer:
         
         parts = all_parts
         
-        # Filter to potential nouns (simple heuristic: not common verbs)
+        # Filter to meaningful words (length > 2)
         nouns = []
         for part in parts:
             part_lower = part.lower()
-            if part_lower not in COMMON_PROGRAMMING_VERBS and len(part_lower) > 2:
+            if len(part_lower) > 2:
                 nouns.append(part_lower)
         
         return nouns
     
     def _extract_nouns_from_text(self, text: str) -> List[str]:
-        """Extract nouns from natural language text using spaCy NLP."""
-        if self.nlp is None:
-            # Fallback to simple extraction if spaCy not available
+        """Extract nouns from natural language text using NLP."""
+        if self.nlp_extractor:
+            # Extract nouns from the text
+            # Split into words and process
+            words = text.split()
+            all_nouns = []
+            
+            # Process chunks of text
+            for i in range(0, len(words), 10):  # Process 10 words at a time
+                chunk = " ".join(words[i:i+10])
+                nouns = self.nlp_extractor.extract_nouns_from_identifier(chunk)
+                all_nouns.extend(nouns)
+            
+            # Filter out programming terms
+            filtered_nouns = []
+            for noun in all_nouns:
+                if not self._is_programming_term(noun):
+                    filtered_nouns.append(noun)
+            
+            return list(set(filtered_nouns))  # Remove duplicates
+        else:
+            # Fallback to simple extraction
             return self._extract_nouns_simple(text)
-        
-        # Use spaCy for proper POS tagging
-        doc = self.nlp(text)
-        nouns = []
-        
-        # Use common skip words constant
-        
-        # Extract nouns based on POS tags
-        for token in doc:
-            # Look for nouns: NN (noun, singular), NNS (noun, plural), 
-            # NNP (proper noun, singular), NNPS (proper noun, plural)
-            if token.pos_ == "NOUN" or token.pos_ == "PROPN":
-                # Skip common programming terms, generic words, and single letters
-                word_lower = token.text.lower()
-                if (not self._is_programming_term(word_lower) and 
-                    len(token.text) > 2 and 
-                    word_lower not in COMMON_SKIP_WORDS and
-                    not token.text.isupper()):  # Skip acronyms like "ID"
-                    nouns.append(word_lower)
-        
-        # Also extract noun chunks (multi-word nouns)
-        for chunk in doc.noun_chunks:
-            # Get the head noun of the chunk
-            head = chunk.root.text.lower()
-            if (not self._is_programming_term(head) and 
-                len(head) > 2 and 
-                head not in COMMON_SKIP_WORDS):
-                nouns.append(head)
-        
-        return list(set(nouns))  # Remove duplicates
     
     def _extract_nouns_simple(self, text: str) -> List[str]:
         """Simple fallback noun extraction without spaCy."""
@@ -335,11 +296,19 @@ class ConceptDiscoverer:
         article_nouns = re.findall(article_pattern, text, re.IGNORECASE)
         
         all_nouns = [w.lower() for w in words + article_nouns]
-        return [n for n in all_nouns if not self._is_programming_term(n) and n not in COMMON_SKIP_WORDS]
+        return [n for n in all_nouns if not self._is_programming_term(n)]
     
     def _is_programming_term(self, word: str) -> bool:
         """Check if a word is a common programming term rather than a domain concept."""
-        return word.lower() in COMMON_PROGRAMMING_TERMS
+        # Keep a minimal set of truly programming-specific terms
+        # The NLP will handle most filtering
+        programming_terms = {
+            'function', 'method', 'class', 'variable', 'parameter', 'argument',
+            'return', 'value', 'type', 'object', 'instance', 'array', 'list',
+            'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
+            'true', 'false', 'none', 'null', 'error', 'exception'
+        }
+        return word.lower() in programming_terms
     
     def _discover_by_behaviors(self) -> Dict[str, Set[str]]:
         """

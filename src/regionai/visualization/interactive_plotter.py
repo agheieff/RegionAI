@@ -5,7 +5,115 @@ import matplotlib.patches as patches
 from ..spaces.concept_space import ConceptSpaceND
 from ..engine.pathfinder import Pathfinder
 from ..config import RegionAIConfig, DEFAULT_CONFIG
-from typing import Optional
+from typing import Optional, Dict, Any
+
+
+class NodeStyleResolver:
+    """Resolves visual styles for nodes based on current UI state."""
+    
+    def __init__(self, config: RegionAIConfig):
+        """Initialize the style resolver with configuration."""
+        self.config = config
+        
+    def get_node_style(self, node_name: str, ui_state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Determine the visual style for a node based on current UI state.
+        
+        Args:
+            node_name: Name of the node/region to style
+            ui_state: Dictionary containing current UI state including:
+                - pathfinding_path: List of nodes in the found path
+                - pathfinding_start: Starting node for pathfinding
+                - selected_region: Currently selected region
+                - space: The concept space (for relationship checks)
+                
+        Returns:
+            Dictionary of style properties (color, alpha, linewidth, etc.)
+        """
+        # Extract state variables
+        pathfinding_path = ui_state.get('pathfinding_path', [])
+        pathfinding_start = ui_state.get('pathfinding_start')
+        selected_region = ui_state.get('selected_region')
+        space = ui_state.get('space')
+        
+        # Determine style based on precedence rules
+        
+        # 1. Path Found: Node is part of the found path
+        if pathfinding_path and node_name in pathfinding_path:
+            path_index = pathfinding_path.index(node_name)
+            return {
+                'facecolor': self.config.viz_path_colors[path_index % len(self.config.viz_path_colors)],
+                'edgecolor': self.config.viz_path_edge_color,
+                'alpha': self.config.viz_path_alpha,
+                'linewidth': self.config.viz_line_widths[3] if len(self.config.viz_line_widths) > 3 else 4,
+                'linestyle': '-',
+                'fontweight': 'bold',
+                'fontsize': self.config.viz_font_size_bold
+            }
+            
+        # 2. Pathfinding Start: Waiting for end point
+        elif node_name == pathfinding_start:
+            return {
+                'facecolor': self.config.viz_path_colors[1] if len(self.config.viz_path_colors) > 1 else 'purple',
+                'edgecolor': self.config.viz_path_colors[1] if len(self.config.viz_path_colors) > 1 else 'purple',
+                'alpha': self.config.viz_selected_alpha,
+                'linewidth': self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3,
+                'linestyle': '--',
+                'fontweight': 'normal',
+                'fontsize': self.config.viz_font_size
+            }
+            
+        # 3. Selected Region
+        elif node_name == selected_region:
+            return {
+                'facecolor': self.config.viz_selected_color,
+                'edgecolor': self.config.viz_selected_color,
+                'alpha': self.config.viz_selected_alpha,
+                'linewidth': self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3,
+                'linestyle': '-',
+                'fontweight': 'normal',
+                'fontsize': self.config.viz_font_size
+            }
+            
+        # 4. Parent/Child relationships when something is selected
+        elif selected_region and space and node_name != selected_region:
+            selected_region_obj = space.get_region(selected_region)
+            current_region = space.get_region(node_name)
+            
+            if selected_region_obj and current_region:
+                # Parent of selected region
+                if current_region.contains(selected_region_obj):
+                    return {
+                        'facecolor': self.config.viz_path_colors[2] if len(self.config.viz_path_colors) > 2 else 'lightblue',
+                        'edgecolor': self.config.viz_path_colors[3] if len(self.config.viz_path_colors) > 3 else 'darkblue',
+                        'alpha': self.config.viz_default_alpha + 0.2,
+                        'linewidth': self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2,
+                        'linestyle': '--',
+                        'fontweight': 'normal',
+                        'fontsize': self.config.viz_font_size
+                    }
+                # Child of selected region
+                elif selected_region_obj.contains(current_region):
+                    return {
+                        'facecolor': self.config.viz_path_colors[4] if len(self.config.viz_path_colors) > 4 else 'lightgreen',
+                        'edgecolor': self.config.viz_path_colors[5] if len(self.config.viz_path_colors) > 5 else 'darkgreen',
+                        'alpha': self.config.viz_default_alpha + 0.2,
+                        'linewidth': self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2,
+                        'linestyle': ':',
+                        'fontweight': 'normal',
+                        'fontsize': self.config.viz_font_size
+                    }
+        
+        # 5. Default style
+        return {
+            'facecolor': self.config.viz_default_color,
+            'edgecolor': self.config.viz_default_color,
+            'alpha': self.config.viz_default_alpha,
+            'linewidth': self.config.viz_line_widths[0] if len(self.config.viz_line_widths) > 0 else 1,
+            'linestyle': '-',
+            'fontweight': 'normal',
+            'fontsize': self.config.viz_font_size
+        }
 
 
 class InteractivePlotter:
@@ -35,11 +143,8 @@ class InteractivePlotter:
         self.pathfinding_start = None
         self.pathfinding_path = []
 
-        # Colors and visual settings from config
-        self.default_color = self.config.viz_default_color
-        self.selected_color = self.config.viz_selected_color
-        self.alpha = self.config.viz_default_alpha
-        self.selected_alpha = self.config.viz_selected_alpha
+        # Create style resolver
+        self.style_resolver = NodeStyleResolver(self.config)
 
     def _reset_state(self):
         """Reset all UI state."""
@@ -111,62 +216,21 @@ class InteractivePlotter:
             width = size_full[self.dim_x] if self.dim_x < len(size_full) else 0
             height = size_full[self.dim_y] if self.dim_y < len(size_full) else 0
 
-            # State-based styling with order of precedence
-            if self.pathfinding_path and name in self.pathfinding_path:
-                # Path Found: Vibrant success style
-                path_index = self.pathfinding_path.index(name)
-                facecolor = self.config.viz_path_colors[path_index % len(self.config.viz_path_colors)]
-                edgecolor = self.config.viz_path_edge_color
-                alpha = self.config.viz_path_alpha
-                linewidth = self.config.viz_line_widths[3] if len(self.config.viz_line_widths) > 3 else 4
-                linestyle = "-"
-            elif name == self.pathfinding_start:
-                # Pathfinding Start: Waiting for input style
-                facecolor = self.config.viz_path_colors[1] if len(self.config.viz_path_colors) > 1 else "purple"
-                edgecolor = facecolor
-                alpha = self.config.viz_selected_alpha
-                linewidth = self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3
-                linestyle = "--"
-            elif name == self.selected_region:
-                # Simple Selection: Selected style
-                facecolor = self.selected_color
-                edgecolor = self.selected_color
-                alpha = self.selected_alpha
-                linewidth = self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3
-                linestyle = "-"
-            elif self.selected_region and name != self.selected_region:
-                # Check parent/child relationships when something is selected
-                selected_region = self.space.get_region(self.selected_region)
-                current_region = region
-
-                if selected_region and current_region.contains(selected_region):
-                    # This is a parent of the selected region
-                    facecolor = self.config.viz_path_colors[2] if len(self.config.viz_path_colors) > 2 else "lightblue"
-                    edgecolor = self.config.viz_path_colors[3] if len(self.config.viz_path_colors) > 3 else "darkblue"
-                    alpha = self.config.viz_default_alpha + 0.2  # Slightly more visible than default
-                    linewidth = self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2
-                    linestyle = "--"  # Dashed for parents
-                elif selected_region and selected_region.contains(current_region):
-                    # This is a child of the selected region
-                    facecolor = self.config.viz_path_colors[4] if len(self.config.viz_path_colors) > 4 else "lightgreen"
-                    edgecolor = self.config.viz_path_colors[5] if len(self.config.viz_path_colors) > 5 else "darkgreen"
-                    alpha = self.config.viz_default_alpha + 0.2  # Slightly more visible than default
-                    linewidth = self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2
-                    linestyle = ":"  # Dotted for children
-                else:
-                    # Default: Neutral style
-                    facecolor = self.default_color
-                    edgecolor = self.default_color
-                    alpha = self.alpha
-                    linewidth = self.config.viz_line_widths[0] if len(self.config.viz_line_widths) > 0 else 1
-                    linestyle = "-"
-            else:
-                # Default: Neutral style
-                facecolor = self.default_color
-                edgecolor = self.default_color
-                alpha = self.alpha
-                linewidth = self.config.viz_line_widths[0] if len(self.config.viz_line_widths) > 0 else 1
-                linestyle = "-"
+            # Get style from resolver
+            ui_state = {
+                'pathfinding_path': self.pathfinding_path,
+                'pathfinding_start': self.pathfinding_start,
+                'selected_region': self.selected_region,
+                'space': self.space
+            }
+            style = self.style_resolver.get_node_style(name, ui_state)
+            
+            # Extract style properties
+            facecolor = style['facecolor']
+            edgecolor = style['edgecolor']
+            alpha = style['alpha']
+            linewidth = style['linewidth']
+            linestyle = style['linestyle']
 
             # Create rectangle patch with projected coordinates
             rect = patches.Rectangle(
@@ -189,16 +253,9 @@ class InteractivePlotter:
             center_x = center_full[self.dim_x] if self.dim_x < len(center_full) else min_x + width/2
             center_y = center_full[self.dim_y] if self.dim_y < len(center_full) else min_y + height/2
             
-            # Make text more prominent for path regions
-            fontweight = (
-                "bold"
-                if (self.pathfinding_path and name in self.pathfinding_path)
-                else "normal"
-            )
-            fontsize = (
-                self.config.viz_font_size_bold if (self.pathfinding_path and name in self.pathfinding_path) 
-                else self.config.viz_font_size
-            )
+            # Get text styling from the style dict
+            fontweight = style['fontweight']
+            fontsize = style['fontsize']
 
             self.ax.text(
                 center_x,

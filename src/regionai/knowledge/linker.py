@@ -7,13 +7,16 @@ and evidence tracking. This is the bridge from deterministic code analysis
 to probabilistic belief formation.
 """
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
 import logging
 
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import DocumentationQuality
 from .graph import KnowledgeGraph, Concept, Relation, RelationMetadata
+from .bayesian_updater import BayesianUpdater
+from ..language.nlp_extractor import NLPExtractor
+from .action_discoverer import ActionDiscoverer
 
 
 class RelationshipPattern:
@@ -100,8 +103,24 @@ class KnowledgeLinker:
         self.concepts = set(self.knowledge_graph.get_concepts())
         self.logger = logging.getLogger(__name__)
         
+        # Initialize Bayesian updater for belief updates
+        self.bayesian_updater = BayesianUpdater(knowledge_graph)
+        
+        # Initialize NLP extractor for intelligent concept extraction
+        try:
+            self.nlp_extractor = NLPExtractor()
+        except OSError:
+            self.logger.warning("spaCy model not found. Using basic extraction.")
+            self.nlp_extractor = None
+        
+        # Initialize action discoverer for behavior understanding
+        self.action_discoverer = ActionDiscoverer()
+        
         # Track discovered relationships for reporting
         self._discovered_relationships: List[Dict[str, any]] = []
+        
+        # Track discovered actions for reporting
+        self._discovered_actions: List[Dict[str, any]] = []
         
         # Build concept name variations for better matching
         self._concept_variations = self._build_concept_variations()
@@ -165,22 +184,50 @@ class KnowledgeLinker:
         doc_fingerprint = entry.documented_fingerprint
         nl_context = doc_fingerprint.nl_context
         
+        # Calculate base confidence from documentation quality
+        quality_score = DocumentationQuality.score_documentation(nl_context)
+        
+        # Extract concepts from function name
+        self._extract_concepts_from_identifier(
+            entry.function_name,
+            'function_name_mention',
+            quality_score
+        )
+        
         # Get all text content
         text_content = []
         
         if nl_context.docstring:
             text_content.append(nl_context.docstring)
+            # Extract concepts from docstring
+            self._extract_concepts_from_text(
+                nl_context.docstring,
+                'docstring_mention',
+                quality_score
+            )
         
         if nl_context.comments:
             text_content.extend(nl_context.comments)
+            # Extract concepts from comments
+            for comment in nl_context.comments:
+                self._extract_concepts_from_text(
+                    comment,
+                    'comment_mention',
+                    quality_score * 0.8  # Comments slightly less reliable
+                )
         
-        # Calculate base confidence from documentation quality
-        quality_score = DocumentationQuality.score_documentation(nl_context)
-        
-        # Process each piece of text
+        # Process each piece of text for relationships
         for text in text_content:
             self._extract_relationships_from_text(
                 text, 
+                entry.function_name,
+                quality_score
+            )
+        
+        # NEW: Discover actions from function body
+        if hasattr(entry, 'source_code') and entry.source_code:
+            self._discover_actions_from_code(
+                entry.source_code,
                 entry.function_name,
                 quality_score
             )
@@ -481,3 +528,189 @@ class KnowledgeLinker:
     def get_discovered_relationships(self) -> List[Dict[str, any]]:
         """Get list of all discovered relationships."""
         return self._discovered_relationships.copy()
+    
+    def _extract_concepts_from_identifier(self, identifier: str, evidence_type: str, 
+                                        source_credibility: float):
+        """
+        Extract concepts from a code identifier and update beliefs.
+        
+        Args:
+            identifier: The identifier to analyze (e.g., function name)
+            evidence_type: Type of evidence for Bayesian update
+            source_credibility: Credibility of the source
+        """
+        extracted_concepts = []
+        
+        if self.nlp_extractor:
+            # Use NLP to extract nouns
+            nouns = self.nlp_extractor.extract_nouns_from_identifier(identifier)
+            
+            for noun in nouns:
+                # Create concept if it doesn't exist
+                concept = Concept(noun.title())
+                extracted_concepts.append(noun.title())
+                
+                # Update belief using Bayesian updater
+                self.bayesian_updater.update_concept_belief(
+                    concept,
+                    evidence_type,
+                    source_credibility
+                )
+                
+                # Add to our concept set if new
+                if concept not in self.concepts:
+                    self.concepts.add(concept)
+                    # Rebuild variations for the new concept
+                    self._concept_variations = self._build_concept_variations()
+        
+        # Process co-occurrences if multiple concepts found
+        if len(extracted_concepts) >= 2:
+            self._process_concept_cooccurrences(
+                extracted_concepts,
+                evidence_type.replace('mention', 'co_occurrence'),
+                source_credibility
+            )
+        
+        return extracted_concepts
+    
+    def _extract_concepts_from_text(self, text: str, evidence_type: str,
+                                  source_credibility: float):
+        """
+        Extract concepts from natural language text and update beliefs.
+        
+        Args:
+            text: The text to analyze
+            evidence_type: Type of evidence for Bayesian update
+            source_credibility: Credibility of the source
+        """
+        all_extracted_concepts = []
+        
+        if self.nlp_extractor:
+            # Split text into sentences for better processing
+            sentences = self._split_into_sentences(text)
+            
+            for sentence in sentences:
+                sentence_concepts = []
+                # Extract nouns from the sentence
+                nouns = self.nlp_extractor.extract_nouns_from_identifier(sentence)
+                
+                for noun in nouns:
+                    # Check if this noun matches any known concept
+                    concept_match = self._find_matching_concept(noun)
+                    
+                    if concept_match:
+                        # Update belief for existing concept
+                        self.bayesian_updater.update_concept_belief(
+                            concept_match,
+                            evidence_type,
+                            source_credibility
+                        )
+                        sentence_concepts.append(str(concept_match))
+                    else:
+                        # Create new concept
+                        concept = Concept(noun.title())
+                        self.bayesian_updater.update_concept_belief(
+                            concept,
+                            evidence_type,
+                            source_credibility * 0.7  # Lower confidence for new concepts from text
+                        )
+                        sentence_concepts.append(noun.title())
+                        
+                        # Add to our concept set
+                        if concept not in self.concepts:
+                            self.concepts.add(concept)
+                            self._concept_variations = self._build_concept_variations()
+                
+                # Process co-occurrences within each sentence
+                if len(sentence_concepts) >= 2:
+                    self._process_concept_cooccurrences(
+                        sentence_concepts,
+                        evidence_type.replace('mention', 'co_occurrence'),
+                        source_credibility
+                    )
+                
+                all_extracted_concepts.extend(sentence_concepts)
+        
+        return all_extracted_concepts
+    
+    def _find_matching_concept(self, noun: str) -> Optional[Concept]:
+        """Find if a noun matches any existing concept."""
+        noun_lower = noun.lower()
+        
+        # Check direct match in variations
+        if noun_lower in self._concept_variations:
+            return self._concept_variations[noun_lower]
+        
+        # Check if it's a plural/singular form of existing concept
+        for concept in self.concepts:
+            concept_str = str(concept).lower()
+            if (noun_lower == concept_str or
+                noun_lower == concept_str + 's' or
+                noun_lower + 's' == concept_str):
+                return concept
+                
+        return None
+    
+    def _process_concept_cooccurrences(self, concepts: List[str], evidence_type: str,
+                                     source_credibility: float):
+        """
+        Process co-occurrences between concepts found in the same context.
+        
+        Args:
+            concepts: List of concept names found together
+            evidence_type: Type of co-occurrence evidence
+            source_credibility: Credibility of the source
+        """
+        # Generate all unique pairs of concepts
+        from itertools import combinations
+        
+        for i, concept1 in enumerate(concepts):
+            for concept2 in concepts[i+1:]:
+                # Skip if same concept
+                if concept1.lower() == concept2.lower():
+                    continue
+                
+                # Update relationship belief
+                self.bayesian_updater.update_relationship_belief(
+                    concept1,
+                    concept2,
+                    evidence_type,
+                    source_credibility
+                )
+    
+    def _discover_actions_from_code(self, source_code: str, function_name: str,
+                                  base_confidence: float):
+        """
+        Discover actions performed in the function code.
+        
+        Args:
+            source_code: The source code of the function
+            function_name: Name of the function
+            base_confidence: Base confidence from documentation quality
+        """
+        # Use ActionDiscoverer to find actions
+        discovered_actions = self.action_discoverer.discover_actions(
+            source_code, function_name
+        )
+        
+        for action in discovered_actions:
+            # Update belief in the action relationship
+            self.bayesian_updater.update_action_belief(
+                action.concept,
+                action.verb,
+                'method_call' if '.' in action.method_name else 'function_name',
+                base_confidence * action.confidence
+            )
+            
+            # Track for reporting
+            self._discovered_actions.append({
+                'concept': action.concept,
+                'action': action.verb,
+                'method': action.method_name,
+                'confidence': action.confidence * base_confidence,
+                'source_function': function_name
+            })
+    
+    def get_discovered_actions(self) -> List[Dict[str, any]]:
+        """Get list of all discovered actions."""
+        return self._discovered_actions.copy()

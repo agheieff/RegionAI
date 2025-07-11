@@ -28,6 +28,9 @@ cd RegionAI
 # Install dependencies with Poetry
 poetry install
 
+# Download spaCy English model for NLP
+poetry run python -m spacy download en_core_web_sm
+
 # Activate the virtual environment (optional)
 poetry shell
 ```

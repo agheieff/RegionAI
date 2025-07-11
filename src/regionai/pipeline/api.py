@@ -727,6 +727,55 @@ def discover_domain_model(code: str, output_file: Optional[str] = None,
     }
 
 
+def generate_docs_for_function(function_name: str, code: str = None, 
+                             knowledge_graph: KnowledgeGraph = None) -> str:
+    """
+    Generate natural language documentation for a function using the Knowledge Graph.
+    
+    This function leverages RegionAI's semantic understanding to produce
+    human-readable summaries of what a function does based on the concepts
+    it involves and their relationships.
+    
+    Args:
+        function_name: Name of the function to document
+        code: Optional source code to analyze (if knowledge_graph not provided)
+        knowledge_graph: Optional pre-built knowledge graph to use
+        
+    Returns:
+        A human-readable summary of the function's purpose
+        
+    Example:
+        >>> code = '''
+        ... def get_customer_orders(customer_id):
+        ...     return db.query(Order).filter(Order.customer_id == customer_id).all()
+        ... '''
+        >>> summary = generate_docs_for_function('get_customer_orders', code)
+        >>> print(summary)
+        This function appears to be primarily concerned with the concepts of 
+        Customer, Orders, and Query.
+    """
+    # Import here to avoid circular dependencies
+    from ..language import DocumentationGenerator
+    
+    # If no knowledge graph provided, build one from code
+    if knowledge_graph is None:
+        if code is None:
+            return f"Error: Either code or knowledge_graph must be provided to generate documentation for '{function_name}'."
+        
+        # Build and enrich the knowledge graph
+        kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    else:
+        kg = knowledge_graph
+    
+    # Create documentation generator
+    doc_gen = DocumentationGenerator(kg)
+    
+    # Generate summary
+    summary = doc_gen.generate_summary(function_name)
+    
+    return summary
+
+
 def find_concept_functions(code: str, concept_name: str) -> Dict[str, List[str]]:
     """
     Find all functions related to a specific concept.
