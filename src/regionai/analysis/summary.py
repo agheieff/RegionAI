@@ -17,9 +17,10 @@ class CallContext:
     """
     function_name: str
     parameter_states: Tuple[Any, ...]  # Using tuple for hashability
+    call_site_id: Optional[int] = None  # Line number or unique ID of the call site
     
     @classmethod
-    def from_call(cls, function_name: str, arg_states: List[AbstractState]) -> 'CallContext':
+    def from_call(cls, function_name: str, arg_states: List[AbstractState], call_site_id: Optional[int] = None) -> 'CallContext':
         """
         Create a CallContext from function name and argument states.
         
@@ -39,7 +40,7 @@ class CallContext:
             )
             hashable_states.append(state_tuple)
         
-        return CallContext(function_name, tuple(hashable_states))
+        return CallContext(function_name, tuple(hashable_states), call_site_id)
     
     def __str__(self) -> str:
         """Human-readable representation."""

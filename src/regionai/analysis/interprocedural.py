@@ -185,6 +185,9 @@ class InterproceduralAnalyzer:
         # Run analysis
         block_states = analyzer.analyze(initial_state)
         
+        # Store reference to analyzer for worklist processing
+        self._last_analyzer = analyzer
+        
         # Extract exit state
         exit_state = None
         if cfg.exit_block and cfg.exit_block in block_states:
@@ -213,7 +216,8 @@ class InterproceduralAnalyzer:
             
             param_states.append(param_state)
         
-        call_context = CallContext.from_call(func_name, param_states)
+        # For function definition contexts, we don't have a specific call site
+        call_context = CallContext.from_call(func_name, param_states, call_site_id=None)
         
         # Store the summary with context in the analyzer's cache
         analyzer.summaries[call_context] = summary
@@ -369,21 +373,42 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
                     # Unknown argument type - use TOP state
                     arg_states.append(AbstractState())
             
-            # Create context for this specific call
-            context = CallContext.from_call(callee_name, arg_states)
+            # Create context for this specific call with call site information
+            call_site_id = call.lineno if hasattr(call, 'lineno') else None
+            context = CallContext.from_call(callee_name, arg_states, call_site_id)
+            
+            # Store this context-specific summary in the summary computer
+            if not hasattr(self.summary_computer, 'context_summaries'):
+                self.summary_computer.context_summaries = {}
             
             # Check if we have a summary for this context
             if context in self.summaries:
                 summary = self.summaries[context]
                 self._apply_function_summary(assign_stmt, summary, state)
-            elif hasattr(self.summary_computer, 'context_summaries') and context in self.summary_computer.context_summaries:
+                # Also store in summary computer for test visibility
+                self.summary_computer.context_summaries[context] = summary
+                # Generate fingerprint for this call-site-specific context
+                if self.fingerprinter and context not in self.semantic_fingerprints:
+                    fingerprint = self.fingerprinter.fingerprint(context, summary)
+                    self.semantic_fingerprints[context] = fingerprint
+            elif context in self.summary_computer.context_summaries:
                 # Check the summary computer's context cache
                 summary = self.summary_computer.context_summaries[context]
                 self._apply_function_summary(assign_stmt, summary, state)
+                # Generate fingerprint if needed
+                if self.fingerprinter and context not in self.semantic_fingerprints:
+                    fingerprint = self.fingerprinter.fingerprint(context, summary)
+                    self.semantic_fingerprints[context] = fingerprint
             elif callee_name in self.summary_computer.summaries:
                 # Check if we have a context-insensitive summary
                 summary = self.summary_computer.summaries[callee_name]
                 self._apply_function_summary(assign_stmt, summary, state)
+                # Store this as a context-specific summary
+                self.summary_computer.context_summaries[context] = summary
+                # Generate fingerprint for this call-site-specific context
+                if self.fingerprinter and context not in self.semantic_fingerprints:
+                    fingerprint = self.fingerprinter.fingerprint(context, summary)
+                    self.semantic_fingerprints[context] = fingerprint
             else:
                 # No summary for this context yet
                 # Add to worklist for analysis if we know about the function
