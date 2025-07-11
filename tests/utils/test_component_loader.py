@@ -222,7 +222,7 @@ class TestIntegration(unittest.TestCase):
         # Should not raise even if NLP is not available
         discoverer = ActionDiscoverer()
         self.assertIsNotNone(discoverer)
-        self.assertTrue(hasattr(discoverer, 'nlp_extractor'))
+        self.assertTrue(hasattr(discoverer, 'nlp_model'))
     
     def test_grammar_extractor_with_missing_model(self):
         """Test GrammarPatternExtractor requires spaCy model."""
@@ -249,8 +249,7 @@ class TestIntegration(unittest.TestCase):
         # Should not raise even if optional components fail
         linker = KnowledgeLinker(db, kg)
         self.assertIsNotNone(linker)
-        self.assertTrue(hasattr(linker, 'nlp_extractor'))
-        self.assertTrue(hasattr(linker, 'grammar_extractor'))
+        self.assertTrue(hasattr(linker, 'nlp_model'))
 
 
 def run_all_tests():

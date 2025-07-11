@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import Behavior
 from .graph import KnowledgeGraph, Concept, Relation, ConceptMetadata, RelationMetadata
-from ..language.nlp_extractor import NLPExtractor
+from ..language import nlp_utils
+from ..utils.component_loader import get_nlp_model
+from ..config import RegionAIConfig, DEFAULT_CONFIG
 
 
 @dataclass
@@ -62,22 +64,7 @@ class ConceptDiscoverer:
     discovering the entities that exist in the problem domain.
     """
     
-    # Common CRUD verbs and their variations
-    CRUD_VERBS = {
-        'create': ['create', 'add', 'insert', 'new', 'make', 'build', 'generate'],
-        'read': ['get', 'fetch', 'find', 'read', 'load', 'retrieve', 'search', 'list'],
-        'update': ['update', 'edit', 'modify', 'change', 'set', 'save', 'patch'],
-        'delete': ['delete', 'remove', 'destroy', 'purge', 'clear', 'drop']
-    }
-    
-    # Common relationship patterns in function names
-    RELATIONSHIP_PATTERNS = {
-        'has_many': [r'get_(\w+)_(\w+)s', r'list_(\w+)_(\w+)s'],
-        'belongs_to': [r'get_(\w+)_by_(\w+)', r'find_(\w+)_for_(\w+)'],
-        'has_one': [r'get_(\w+)_(\w+)(?!s)', r'fetch_(\w+)_(\w+)(?!s)']
-    }
-    
-    def __init__(self, semantic_db: SemanticDB):
+    def __init__(self, semantic_db: SemanticDB, config: RegionAIConfig = None):
         """
         Initialize the discoverer with a semantic database.
         
@@ -85,16 +72,14 @@ class ConceptDiscoverer:
             semantic_db: The analyzed codebase's semantic information
         """
         self.db = semantic_db
+        self.config = config or DEFAULT_CONFIG
         self._discovered_patterns: List[CRUDPattern] = []
         self._noun_frequencies: Dict[str, int] = defaultdict(int)
         
-        # Initialize NLP extractor
-        try:
-            self.nlp_extractor = NLPExtractor()
-        except OSError:
-            # Fallback if model not available
+        # Get the cached NLP model
+        self.nlp_model = get_nlp_model()
+        if self.nlp_model is None:
             print("Warning: spaCy model not found. Using basic extraction.")
-            self.nlp_extractor = None
     
     def discover_concepts(self) -> KnowledgeGraph:
         """
@@ -135,7 +120,7 @@ class ConceptDiscoverer:
             func_name = entry.function_name.lower()
             
             # Try to match CRUD patterns
-            for operation, verbs in self.CRUD_VERBS.items():
+            for operation, verbs in self.config.discovery.crud_verbs.items():
                 for verb in verbs:
                     # Pattern: verb_noun (e.g., create_user)
                     match = re.match(f'{verb}_(\\w+)', func_name)
@@ -154,7 +139,7 @@ class ConceptDiscoverer:
         # Filter patterns that have at least 2 different operations
         valid_patterns = []
         for concept_name, pattern in patterns.items():
-            if pattern.completeness_score >= 0.5:  # At least 2 out of 4 CRUD ops
+            if pattern.completeness_score >= self.config.discovery.crud_pattern_min_operations:
                 valid_patterns.append(pattern)
                 self._discovered_patterns.append(pattern)
         
@@ -204,7 +189,7 @@ class ConceptDiscoverer:
                         self._noun_frequencies[noun] += 1
         
         # Consider nouns that appear frequently as concepts
-        threshold = 1  # Mentioned at least 1 time (but will be filtered by verbs)
+        threshold = self.config.discovery.concept_frequency_threshold
         
         for noun, frequency in self._noun_frequencies.items():
             if frequency >= threshold:
@@ -216,41 +201,13 @@ class ConceptDiscoverer:
     
     def _extract_nouns_from_identifier(self, identifier: str) -> List[str]:
         """Extract potential nouns from snake_case or camelCase identifiers."""
-        if self.nlp_extractor:
-            # Use intelligent NLP-based extraction
-            return self.nlp_extractor.extract_nouns_from_identifier(identifier)
-        else:
-            # Fallback to basic extraction
-            return self._extract_nouns_simple_fallback(identifier)
+        # Use the pure function from nlp_utils
+        return nlp_utils.extract_nouns_from_identifier(identifier, self.nlp_model)
     
-    def _extract_nouns_simple_fallback(self, identifier: str) -> List[str]:
-        """Simple fallback noun extraction when NLP is not available."""
-        # First split by underscore
-        underscore_parts = identifier.split('_')
-        all_parts = []
-        
-        for part in underscore_parts:
-            # Then split each part by camelCase
-            camel_parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)', part)
-            if camel_parts:
-                all_parts.extend(camel_parts)
-            else:
-                all_parts.append(part)
-        
-        parts = all_parts
-        
-        # Filter to meaningful words (length > 2)
-        nouns = []
-        for part in parts:
-            part_lower = part.lower()
-            if len(part_lower) > 2:
-                nouns.append(part_lower)
-        
-        return nouns
     
     def _extract_nouns_from_text(self, text: str) -> List[str]:
         """Extract nouns from natural language text using NLP."""
-        if self.nlp_extractor:
+        if self.nlp_model:
             # Extract nouns from the text
             # Split into words and process
             words = text.split()
@@ -259,7 +216,7 @@ class ConceptDiscoverer:
             # Process chunks of text
             for i in range(0, len(words), 10):  # Process 10 words at a time
                 chunk = " ".join(words[i:i+10])
-                nouns = self.nlp_extractor.extract_nouns_from_identifier(chunk)
+                nouns = nlp_utils.extract_nouns_from_identifier(chunk, self.nlp_model)
                 all_nouns.extend(nouns)
             
             # Filter out programming terms
@@ -300,15 +257,7 @@ class ConceptDiscoverer:
     
     def _is_programming_term(self, word: str) -> bool:
         """Check if a word is a common programming term rather than a domain concept."""
-        # Keep a minimal set of truly programming-specific terms
-        # The NLP will handle most filtering
-        programming_terms = {
-            'function', 'method', 'class', 'variable', 'parameter', 'argument',
-            'return', 'value', 'type', 'object', 'instance', 'array', 'list',
-            'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
-            'true', 'false', 'none', 'null', 'error', 'exception'
-        }
-        return word.lower() in programming_terms
+        return word.lower() in self.config.discovery.programming_terms
     
     def _discover_by_behaviors(self) -> Dict[str, Set[str]]:
         """
@@ -356,7 +305,7 @@ class ConceptDiscoverer:
             func_name = entry.function_name.lower()
             
             # Check for relationship patterns
-            for rel_type, patterns in self.RELATIONSHIP_PATTERNS.items():
+            for rel_type, patterns in self.config.discovery.relationship_patterns.items():
                 for pattern in patterns:
                     match = re.match(pattern, func_name)
                     if match:

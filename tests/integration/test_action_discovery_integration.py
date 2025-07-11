@@ -130,7 +130,7 @@ def manage_products(products):
     
     print(f"Product action verbs: {sorted(product_verbs)}")
     
-    if discoverer.nlp_extractor:  # Only if spaCy is available
+    if discoverer.nlp_model:  # Only if spaCy is available
         # Should have lemmatized forms
         assert "create" in product_verbs or "manage" in product_verbs
         assert "update" in product_verbs or "manage" in product_verbs

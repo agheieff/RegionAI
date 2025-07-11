@@ -227,7 +227,7 @@ def update_records(records):
     print(f"Lemmatized verbs: {sorted(verbs)}")
     
     # All forms should be lemmatized to base form
-    if discoverer.nlp_extractor:  # Only if spaCy is available
+    if discoverer.nlp_model:  # Only if spaCy is available
         assert "update" in verbs, "Should lemmatize 'updating' to 'update'"
         assert "validate" in verbs, "Should lemmatize 'validated' to 'validate'"
         assert "save" in verbs, "Should lemmatize 'saves' to 'save'"

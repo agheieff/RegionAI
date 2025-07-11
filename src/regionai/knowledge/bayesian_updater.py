@@ -6,6 +6,7 @@ the probabilistic belief distributions (alpha/beta parameters) for
 concepts and relationships.
 """
 from .graph import KnowledgeGraph, Concept, Relation
+from ..config import RegionAIConfig, DEFAULT_CONFIG
 
 
 class BayesianUpdater:
@@ -13,14 +14,16 @@ class BayesianUpdater:
     Applies Bayesian updates to the beliefs within a KnowledgeGraph.
     """
 
-    def __init__(self, knowledge_graph: KnowledgeGraph):
+    def __init__(self, knowledge_graph: KnowledgeGraph, config: RegionAIConfig = None):
         """
         Initializes the updater with a reference to the graph it will modify.
 
         Args:
             knowledge_graph: The KnowledgeGraph instance to be updated.
+            config: Configuration object with evidence strengths
         """
         self.kg = knowledge_graph
+        self.config = config or DEFAULT_CONFIG
 
     def update_belief(
         self,
@@ -65,8 +68,8 @@ class BayesianUpdater:
             raise ValueError(f"Could not find relationship {source_concept} -> {target_concept} ({relation})")
         
         # 2. Calculate the "strength" of the evidence
-        # Base evidence weight of 1.0, multiplied by source credibility
-        evidence_strength = 1.0 * source_credibility
+        # Base evidence weight, multiplied by source credibility
+        evidence_strength = self.config.discovery.base_evidence_weight * source_credibility
         
         # 3. Update alpha or beta based on evidence polarity
         if evidence_is_positive:
@@ -80,7 +83,7 @@ class BayesianUpdater:
         self,
         concept: Concept,
         evidence_type: str,
-        source_credibility: float = 0.8
+        source_credibility: float = None
     ):
         """
         Updates the belief in a concept based on new evidence.
@@ -103,19 +106,20 @@ class BayesianUpdater:
             from .graph import ConceptMetadata
             metadata = ConceptMetadata(
                 discovery_method=evidence_type,
-                alpha=1.0,  # Initial belief
-                beta=1.0    # Initial disbelief
+                alpha=self.config.discovery.initial_alpha,  # Initial belief
+                beta=self.config.discovery.initial_beta    # Initial disbelief
             )
             self.kg.add_concept(concept, metadata)
             metadata = self.kg.get_concept_metadata(concept)
         
+        # Use default credibility if not provided
+        if source_credibility is None:
+            source_credibility = self.config.discovery.default_source_credibility
+        
         # Calculate evidence strength based on type
-        base_strength = {
-            'function_name_mention': 1.5,  # Strong evidence
-            'docstring_mention': 1.0,      # Good evidence
-            'comment_mention': 0.7,        # Moderate evidence
-            'identifier_extraction': 0.5    # Weak evidence
-        }.get(evidence_type, 0.5)
+        base_strength = self.config.discovery.concept_evidence_strengths.get(
+            evidence_type, self.config.discovery.default_evidence_strength
+        )
         
         evidence_strength = base_strength * source_credibility
         
@@ -131,7 +135,7 @@ class BayesianUpdater:
         concept1_name: str,
         concept2_name: str,
         evidence_type: str,
-        source_credibility: float = 0.8
+        source_credibility: float = None
     ):
         """
         Updates the belief in a co-occurrence relationship between two concepts.
@@ -153,9 +157,9 @@ class BayesianUpdater:
         
         # Ensure both concepts exist in the graph
         if concept1 not in self.kg:
-            self.update_concept_belief(concept1, 'co_occurrence_discovery', source_credibility * 0.5)
+            self.update_concept_belief(concept1, 'co_occurrence_discovery', source_credibility * self.config.discovery.co_occurrence_discovery_factor)
         if concept2 not in self.kg:
-            self.update_concept_belief(concept2, 'co_occurrence_discovery', source_credibility * 0.5)
+            self.update_concept_belief(concept2, 'co_occurrence_discovery', source_credibility * self.config.discovery.co_occurrence_discovery_factor)
         
         # Check if relationship already exists
         edge_data = self.kg.graph.get_edge_data(concept1, concept2)
@@ -173,15 +177,15 @@ class BayesianUpdater:
             from .graph import RelationMetadata
             related_metadata = RelationMetadata(
                 relation_type='RELATED_TO',
-                alpha=1.0,  # Initial belief
-                beta=1.0    # Initial disbelief
+                alpha=self.config.discovery.initial_alpha,  # Initial belief
+                beta=self.config.discovery.initial_beta    # Initial disbelief
             )
             self.kg.add_relation(
                 concept1, 
                 concept2, 
                 Relation('RELATED_TO'),
                 metadata=related_metadata,
-                confidence=0.5,
+                confidence=self.config.discovery.default_evidence_strength,
                 evidence=f"Co-occurrence: {concept1_name} and {concept2_name} found together"
             )
             # Refresh metadata reference
@@ -191,13 +195,14 @@ class BayesianUpdater:
                     related_metadata = data['metadata']
                     break
         
+        # Use default credibility if not provided
+        if source_credibility is None:
+            source_credibility = self.config.discovery.default_source_credibility
+        
         # Calculate evidence strength based on type
-        base_strength = {
-            'co_occurrence_in_name': 1.2,       # Strong evidence
-            'co_occurrence_in_docstring': 0.8,  # Good evidence
-            'co_occurrence_in_comment': 0.6,    # Moderate evidence
-            'co_occurrence_in_code': 0.5        # Weak evidence
-        }.get(evidence_type, 0.5)
+        base_strength = self.config.discovery.relationship_evidence_strengths.get(
+            evidence_type, self.config.discovery.default_evidence_strength
+        )
         
         evidence_strength = base_strength * source_credibility
         
@@ -215,15 +220,16 @@ class BayesianUpdater:
             # Create reverse relationship
             reverse_metadata = RelationMetadata(
                 relation_type='RELATED_TO',
-                alpha=1.0 + evidence_strength,
-                beta=1.0
+                alpha=self.config.discovery.initial_alpha + evidence_strength,
+                beta=self.config.discovery.initial_beta
             )
             self.kg.add_relation(
                 concept2,
                 concept1,
                 Relation('RELATED_TO'),
                 metadata=reverse_metadata,
-                confidence=(1.0 + evidence_strength) / (2.0 + evidence_strength),
+                confidence=(self.config.discovery.initial_alpha + evidence_strength) / 
+                          (self.config.discovery.initial_alpha + self.config.discovery.initial_beta + evidence_strength),
                 evidence=f"Co-occurrence: {concept2_name} and {concept1_name} found together"
             )
     
@@ -232,7 +238,7 @@ class BayesianUpdater:
         concept_name: str,
         action_verb: str,
         evidence_type: str,
-        source_credibility: float = 0.8
+        source_credibility: float = None
     ):
         """
         Updates the belief that a concept performs a specific action.
@@ -260,8 +266,8 @@ class BayesianUpdater:
             from .graph import ConceptMetadata
             action_metadata = ConceptMetadata(
                 discovery_method='ACTION_VERB',
-                alpha=1.0,
-                beta=1.0,
+                alpha=self.config.discovery.initial_alpha,
+                beta=self.config.discovery.initial_beta,
                 properties={'is_action': True, 'verb_form': action_verb}
             )
             self.kg.add_concept(action, action_metadata)
@@ -282,15 +288,15 @@ class BayesianUpdater:
             from .graph import RelationMetadata
             performs_metadata = RelationMetadata(
                 relation_type='PERFORMS',
-                alpha=1.0,  # Initial belief
-                beta=1.0    # Initial disbelief
+                alpha=self.config.discovery.initial_alpha,  # Initial belief
+                beta=self.config.discovery.initial_beta    # Initial disbelief
             )
             self.kg.add_relation(
                 concept,
                 action,
                 Relation('PERFORMS'),
                 metadata=performs_metadata,
-                confidence=0.5,
+                confidence=self.config.discovery.default_evidence_strength,
                 evidence=f"{concept_name} performs action: {action_verb}"
             )
             # Refresh metadata reference
@@ -300,13 +306,14 @@ class BayesianUpdater:
                     performs_metadata = data['metadata']
                     break
         
+        # Use default credibility if not provided
+        if source_credibility is None:
+            source_credibility = self.config.discovery.default_source_credibility
+        
         # Calculate evidence strength based on type
-        base_strength = {
-            'method_call': 1.5,          # Very strong evidence
-            'function_name': 1.2,        # Strong evidence
-            'ast_analysis': 1.0,         # Good evidence
-            'inferred_pattern': 0.7      # Moderate evidence
-        }.get(evidence_type, 0.5)
+        base_strength = self.config.discovery.action_evidence_strengths.get(
+            evidence_type, self.config.discovery.default_evidence_strength
+        )
         
         evidence_strength = base_strength * source_credibility
         
@@ -318,7 +325,7 @@ class BayesianUpdater:
         action1_verb: str,
         action2_verb: str,
         evidence_type: str,
-        source_credibility: float = 0.8
+        source_credibility: float = None
     ):
         """
         Updates the belief that one action precedes another in execution.
@@ -342,8 +349,8 @@ class BayesianUpdater:
             from .graph import ConceptMetadata
             action1_metadata = ConceptMetadata(
                 discovery_method='ACTION_VERB',
-                alpha=1.0,
-                beta=1.0,
+                alpha=self.config.discovery.initial_alpha,
+                beta=self.config.discovery.initial_beta,
                 properties={'is_action': True, 'verb_form': action1_verb}
             )
             self.kg.add_concept(action1, action1_metadata)
@@ -352,8 +359,8 @@ class BayesianUpdater:
             from .graph import ConceptMetadata
             action2_metadata = ConceptMetadata(
                 discovery_method='ACTION_VERB',
-                alpha=1.0,
-                beta=1.0,
+                alpha=self.config.discovery.initial_alpha,
+                beta=self.config.discovery.initial_beta,
                 properties={'is_action': True, 'verb_form': action2_verb}
             )
             self.kg.add_concept(action2, action2_metadata)
@@ -374,15 +381,15 @@ class BayesianUpdater:
             from .graph import RelationMetadata
             precedes_metadata = RelationMetadata(
                 relation_type='PRECEDES',
-                alpha=1.0,  # Initial belief
-                beta=1.0    # Initial disbelief
+                alpha=self.config.discovery.initial_alpha,  # Initial belief
+                beta=self.config.discovery.initial_beta    # Initial disbelief
             )
             self.kg.add_relation(
                 action1,
                 action2,
                 Relation('PRECEDES'),
                 metadata=precedes_metadata,
-                confidence=0.5,
+                confidence=self.config.discovery.default_evidence_strength,
                 evidence=f"{action1_verb} precedes {action2_verb}"
             )
             # Refresh metadata reference
@@ -392,13 +399,14 @@ class BayesianUpdater:
                     precedes_metadata = data['metadata']
                     break
         
+        # Use default credibility if not provided
+        if source_credibility is None:
+            source_credibility = self.config.discovery.default_source_credibility
+        
         # Calculate evidence strength based on type
-        base_strength = {
-            'sequential_execution': 1.5,      # Very strong evidence
-            'control_flow': 1.2,             # Strong evidence
-            'pattern_analysis': 0.8,         # Good evidence
-            'statistical_inference': 0.6     # Moderate evidence
-        }.get(evidence_type, 0.5)
+        base_strength = self.config.discovery.sequence_evidence_strengths.get(
+            evidence_type, self.config.discovery.default_evidence_strength
+        )
         
         evidence_strength = base_strength * source_credibility
         

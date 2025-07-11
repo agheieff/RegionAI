@@ -46,8 +46,9 @@ def discover_concept_from_failures(failed_problems: List[Problem]) -> Optional[R
             search_queue.append(seq)
         elif primitive.num_args == 1 and primitive.name == "ADD_TENSOR":
             # Special case: try using input as argument (for doubling)
-            # We'll use a marker tensor to indicate "use input"
-            marker = torch.tensor([-999.0])  # Special marker
+            # We'll use a marker object to indicate "use input"
+            from .transformation import UseInputAsArgument
+            marker = UseInputAsArgument()  # Explicit marker
             applied = AppliedTransformation(primitive, [marker])
             seq = TransformationSequence([applied])
             search_queue.append(seq)

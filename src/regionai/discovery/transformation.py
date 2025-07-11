@@ -9,6 +9,11 @@ from typing import List, Callable, Dict, Any, Union
 import torch
 
 
+class UseInputAsArgument:
+    """Marker class to indicate that the input tensor should be used as an argument."""
+    pass
+
+
 @dataclass(frozen=True)
 class AppliedTransformation:
     """
@@ -143,9 +148,13 @@ class TransformationSequence:
                 # Handle special marker for "use input as argument"
                 processed_args = []
                 for arg in args:
-                    if isinstance(arg, torch.Tensor) and arg.numel() == 1 and arg.item() == -999.0:
-                        # Use the current input as the argument
-                        processed_args.append(x)
+                    if isinstance(arg, UseInputAsArgument):
+                        # Use the original input tensor as the argument
+                        # This is used for operations like doubling (x + x)
+                        if isinstance(x, torch.Tensor):
+                            processed_args.append(x)
+                        else:
+                            processed_args.append(current_value)
                     else:
                         processed_args.append(arg)
                 current_value = trans.operation(current_value, processed_args)

@@ -80,7 +80,8 @@ class SequentialDiscovery(DiscoveryStrategy):
                 search_queue.append(seq)
             elif primitive.num_args == 1 and primitive.name == "ADD_TENSOR":
                 # Special case for doubling
-                marker = torch.tensor([-999.0])
+                from .transformation import UseInputAsArgument
+                marker = UseInputAsArgument()
                 applied = AppliedTransformation(primitive, [marker])
                 seq = TransformationSequence([applied])
                 search_queue.append(seq)

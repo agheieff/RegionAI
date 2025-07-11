@@ -11,8 +11,12 @@ from .projection_model import (
     create_projection_model, ModelCheckpoint
 )
 from .trainer import ProjectionTrainer, LanguageBridgeTrainer
-from .nlp_extractor import NLPExtractor
+# NLPExtractor replaced by pure functions in nlp_utils
 from .doc_generator import DocumentationGenerator
+
+# Import pure function modules  
+from . import grammar_utils
+from . import nlp_utils
 
 __all__ = [
     # Vectorizers
@@ -28,8 +32,9 @@ __all__ = [
     # Trainers
     'ProjectionTrainer',
     'LanguageBridgeTrainer',
-    # NLP
-    'NLPExtractor',
     # Documentation
     'DocumentationGenerator',
+    # Pure function modules
+    'grammar_utils',
+    'nlp_utils',
 ]

@@ -610,7 +610,7 @@ def build_knowledge_graph(code: str, include_source: bool = True,
     
     # Discover concepts from the semantic database
     print("Discovering concepts...")
-    discoverer = ConceptDiscoverer(result.semantic_db)
+    discoverer = ConceptDiscoverer(result.semantic_db, config)
     knowledge_graph = discoverer.discover_concepts()
     
     # Print discovery statistics
@@ -620,7 +620,7 @@ def build_knowledge_graph(code: str, include_source: bool = True,
     # Enrich with relationships from documentation
     if enrich_from_docs and include_source:
         print("Enriching graph from documentation...")
-        linker = KnowledgeLinker(result.semantic_db, knowledge_graph)
+        linker = KnowledgeLinker(result.semantic_db, knowledge_graph, config)
         knowledge_graph = linker.enrich_graph()
         
         # Print enrichment statistics

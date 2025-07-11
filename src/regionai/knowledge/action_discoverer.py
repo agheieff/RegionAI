@@ -10,8 +10,9 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 import logging
 
-from ..language.nlp_extractor import NLPExtractor
-from ..utils.component_loader import OptionalComponentMixin
+from ..language import nlp_utils
+from ..utils.component_loader import get_nlp_model
+from ..config import RegionAIConfig, DEFAULT_CONFIG
 
 
 @dataclass
@@ -89,7 +90,7 @@ class SequentialActionVisitor(ast.NodeVisitor):
             self.visit(stmt)
 
 
-class ActionDiscoverer(OptionalComponentMixin):
+class ActionDiscoverer:
     """
     Discovers actions (verbs) from function bodies by analyzing AST.
     
@@ -98,30 +99,15 @@ class ActionDiscoverer(OptionalComponentMixin):
     the action being performed.
     """
     
-    def __init__(self):
+    def __init__(self, config: RegionAIConfig = None):
         """Initialize the action discoverer."""
         self.logger = logging.getLogger(__name__)
+        self.config = config or DEFAULT_CONFIG
         
-        # Initialize NLP extractor for verb analysis using standardized loader
-        self._init_optional_component(
-            component_name="NLP Extractor",
-            loader_func=lambda: NLPExtractor(),
-            attr_name="nlp_extractor",
-            error_types=(OSError, ImportError),
-            warning_message="spaCy model not found. Using fallback verb extraction."
-        )
-        
-        # Common action verbs in programming (fallback list)
-        self.common_action_verbs = {
-            'get', 'set', 'create', 'update', 'delete', 'save', 'load',
-            'send', 'receive', 'process', 'validate', 'check', 'verify',
-            'calculate', 'compute', 'filter', 'sort', 'search', 'find',
-            'add', 'remove', 'insert', 'append', 'push', 'pop', 'clear',
-            'open', 'close', 'read', 'write', 'connect', 'disconnect',
-            'start', 'stop', 'run', 'execute', 'trigger', 'handle',
-            'parse', 'format', 'encode', 'decode', 'encrypt', 'decrypt',
-            'build', 'destroy', 'initialize', 'configure', 'setup'
-        }
+        # Get the cached NLP model
+        self.nlp_model = get_nlp_model()
+        if self.nlp_model is None:
+            self.logger.warning("spaCy model not found. Using fallback verb extraction.")
     
     def discover_actions(self, function_code: str, function_name: str) -> List[DiscoveredAction]:
         """
@@ -187,7 +173,8 @@ class ActionDiscoverer(OptionalComponentMixin):
             next_action = actions[i + 1]
             
             # Only create sequence if both actions have reasonable confidence
-            if current.confidence >= 0.6 and next_action.confidence >= 0.6:
+            if current.confidence >= self.config.discovery.action_confidence_sequence_threshold and \
+               next_action.confidence >= self.config.discovery.action_confidence_sequence_threshold:
                 sequences.append((current, next_action))
         
         return sequences
@@ -283,8 +270,8 @@ class ActionDiscoverer(OptionalComponentMixin):
         Returns:
             List of lemmatized verbs
         """
-        if self.nlp_extractor:
-            verbs = self.nlp_extractor.extract_verbs_from_identifier(method_name)
+        if self.nlp_model:
+            verbs = nlp_utils.extract_verbs(method_name, self.nlp_model)
             if verbs:
                 return verbs
         
@@ -292,7 +279,7 @@ class ActionDiscoverer(OptionalComponentMixin):
         method_lower = method_name.lower()
         found_verbs = []
         
-        for verb in self.common_action_verbs:
+        for verb in self.config.discovery.common_action_verbs:
             if method_lower.startswith(verb):
                 found_verbs.append(verb)
                 break
@@ -322,12 +309,12 @@ class ActionDiscoverer(OptionalComponentMixin):
         potential_verb = parts[0]
         potential_concept = '_'.join(parts[1:])
         
-        if potential_verb in self.common_action_verbs:
+        if potential_verb in self.config.discovery.common_action_verbs:
             return DiscoveredAction(
                 verb=potential_verb,
                 concept=potential_concept,
                 method_name=func_name,
-                confidence=0.7  # Lower confidence for inferred pattern
+                confidence=self.config.discovery.action_confidence_common_verb  # Lower confidence for inferred pattern
             )
         
         return None
@@ -345,9 +332,9 @@ class ActionDiscoverer(OptionalComponentMixin):
         actions = []
         
         # Extract verbs from function name
-        if self.nlp_extractor:
-            verbs = self.nlp_extractor.extract_verbs_from_identifier(function_name)
-            nouns = self.nlp_extractor.extract_nouns_from_identifier(function_name)
+        if self.nlp_model:
+            verbs = nlp_utils.extract_verbs(function_name, self.nlp_model)
+            nouns = nlp_utils.extract_nouns_from_identifier(function_name, self.nlp_model)
             
             # Try to pair verbs with nouns
             for verb in verbs:
@@ -356,19 +343,19 @@ class ActionDiscoverer(OptionalComponentMixin):
                         verb=verb,
                         concept=noun,
                         method_name=function_name,
-                        confidence=0.8  # Good confidence for function name patterns
+                        confidence=self.config.discovery.action_confidence_function_name_pattern
                     ))
         
         # Fallback pattern matching
         if not actions:
             parts = function_name.lower().split('_')
-            if len(parts) >= 2 and parts[0] in self.common_action_verbs:
+            if len(parts) >= 2 and parts[0] in self.config.discovery.common_action_verbs:
                 concept = '_'.join(parts[1:])
                 actions.append(DiscoveredAction(
                     verb=parts[0],
                     concept=concept,
                     method_name=function_name,
-                    confidence=0.7
+                    confidence=self.config.discovery.action_confidence_common_verb
                 ))
         
         return actions
@@ -386,15 +373,15 @@ class ActionDiscoverer(OptionalComponentMixin):
         """
         # Higher confidence if verb is at the start of method name
         if method_name.lower().startswith(verb):
-            return 0.9
+            return self.config.discovery.action_confidence_verb_at_start
         
         # Good confidence if verb is clearly separated
         if f"_{verb}_" in method_name.lower() or method_name.lower().endswith(f"_{verb}"):
-            return 0.8
+            return self.config.discovery.action_confidence_verb_separated
         
         # Medium confidence if verb is a common action
-        if verb in self.common_action_verbs:
-            return 0.7
+        if verb in self.config.discovery.common_action_verbs:
+            return self.config.discovery.action_confidence_common_verb
         
         # Lower confidence otherwise
-        return 0.6
+        return self.config.discovery.action_confidence_default

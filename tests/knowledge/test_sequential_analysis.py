@@ -218,8 +218,8 @@ def process_order(order):
     order.send_confirmation()
 '''
     
-    # Manually call the processing method
-    linker._discover_actions_from_code(source_code, "process_order", 0.8)
+    # Use the action coordinator directly
+    result = linker.action_coordinator.discover_actions_from_code(source_code, "process_order", 0.8)
     
     # Check that sequences were discovered
     discovered_relationships = linker.get_discovered_relationships()

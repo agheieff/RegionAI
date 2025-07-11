@@ -11,7 +11,7 @@ import os
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from regionai.knowledge.linker import KnowledgeLinker, RelationshipPattern
+from regionai.knowledge.linker import KnowledgeLinker
 from regionai.knowledge.graph import KnowledgeGraph, Concept, Relation
 from regionai.knowledge.discovery import ConceptDiscoverer
 from regionai.semantic.db import SemanticDB, SemanticEntry
