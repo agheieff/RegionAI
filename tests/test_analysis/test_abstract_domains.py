@@ -5,20 +5,20 @@ import pytest
 import ast
 from typing import Dict, Any
 
-from src.regionai.discovery.abstract_domains import (
+from regionai.discovery.abstract_domains import (
     Sign, Nullability, 
     sign_add, sign_multiply, nullability_join,
     reset_abstract_state, update_sign_state, update_nullability_state,
     check_null_dereference, prove_property
 )
-from src.regionai.discovery.range_domain import (
+from regionai.discovery.range_domain import (
     Range, range_add, range_widen, check_array_bounds
 )
-from src.regionai.analysis import (
+from regionai.analysis import (
     build_cfg, analyze_with_fixpoint,
     build_call_graph
 )
-from src.regionai.analysis.interprocedural import analyze_interprocedural
+from regionai.analysis.interprocedural import analyze_interprocedural
 
 
 class TestSignDomain:

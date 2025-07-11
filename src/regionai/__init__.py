@@ -14,4 +14,5 @@ __all__ = [
     "ConceptSpace2D",
     "Pathfinder",
     "InteractivePlotter",
+    "__version__",
 ]

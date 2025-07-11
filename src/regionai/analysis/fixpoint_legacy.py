@@ -1,6 +1,5 @@
 """
 Fixpoint computation for abstract interpretation with widening.
-REFACTORED VERSION: Uses AnalysisContext instead of global state.
 """
 import ast
 from typing import Dict, Any, Optional, Set, Callable
@@ -8,10 +7,13 @@ from dataclasses import dataclass
 from copy import deepcopy
 
 from .cfg import ControlFlowGraph, BasicBlock, build_cfg
-from .context import AnalysisContext
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
-    analyze_assignment
+    update_sign_state, reset_abstract_state
 )
 
 
@@ -74,21 +76,17 @@ class WideningOperator:
     """Widening operators for different abstract domains."""
     
     @staticmethod
-    def widen_sign(old: Sign, new: Sign, iteration: int, threshold: int = 3) -> Sign:
+    def widen_sign(old: Sign, new: Sign, iteration: int) -> Sign:
         """
         Widening for sign domain.
         After threshold iterations, aggressively widen to TOP.
-        
-        Args:
-            old: Previous sign value
-            new: New sign value
-            iteration: Current iteration number
-            threshold: Widening threshold (from config)
         """
+        WIDENING_THRESHOLD = 3
+        
         if old == new:
             return old
             
-        if iteration >= threshold:
+        if iteration >= WIDENING_THRESHOLD:
             # Aggressive widening to ensure termination
             return Sign.TOP
             
@@ -100,122 +98,85 @@ class WideningOperator:
         return Sign.TOP
     
     @staticmethod
-    def widen_state(old_state: AnalysisState, new_state: AnalysisState, 
-                   threshold: int = 3) -> AnalysisState:
-        """
-        Apply widening to abstract state.
+    def widen_state(old_state: AnalysisState, new_state: AnalysisState) -> AnalysisState:
+        """Apply widening to the entire state."""
+        result = new_state.copy()
         
-        Args:
-            old_state: Previous state
-            new_state: New state
-            threshold: Widening threshold from config
-        """
-        widened = old_state.copy()
-        widened.iteration_count = new_state.iteration_count
-        
-        # Widen sign states
+        # Widen each variable's sign
         for var in new_state.abstract_state.sign_state:
             if var in old_state.abstract_state.sign_state:
                 old_sign = old_state.abstract_state.sign_state[var]
                 new_sign = new_state.abstract_state.sign_state[var]
-                widened.abstract_state.sign_state[var] = WideningOperator.widen_sign(
-                    old_sign, new_sign, new_state.iteration_count, threshold
+                widened_sign = WideningOperator.widen_sign(
+                    old_sign, new_sign, new_state.iteration_count
                 )
-            else:
-                widened.abstract_state.sign_state[var] = new_state.abstract_state.sign_state[var]
-        
-        return widened
+                result.abstract_state.sign_state[var] = widened_sign
+                
+        return result
 
 
 class FixpointAnalyzer:
-    """
-    Performs fixpoint computation on a CFG with abstract interpretation.
-    REFACTORED: Now accepts AnalysisContext for state management.
-    """
+    """Performs fixpoint analysis on a control flow graph."""
     
-    def __init__(self, cfg: ControlFlowGraph, context: AnalysisContext = None):
-        """
-        Initialize the fixpoint analyzer.
-        
-        Args:
-            cfg: Control flow graph to analyze
-            context: Analysis context for state management
-        """
+    def __init__(self, cfg: ControlFlowGraph):
         self.cfg = cfg
-        self.context = context if context is not None else AnalysisContext()
         self.block_states: Dict[int, AnalysisState] = {}
-        self.worklist: Set[int] = set()
+        self.max_iterations = 100  # Safety limit
         
-    def analyze(self, initial_state: AbstractState) -> Dict[int, AnalysisState]:
+    def analyze(self, initial_state: Optional[AbstractState] = None) -> Dict[int, AnalysisState]:
         """
-        Perform fixpoint analysis starting from initial state.
-        
-        Args:
-            initial_state: Initial abstract state
+        Perform fixpoint analysis on the CFG.
+        Returns the final state at each block.
+        """
+        # Initialize states
+        if initial_state is None:
+            initial_state = AbstractState()
             
-        Returns:
-            Mapping from block IDs to their final abstract states
-        """
-        # Initialize entry block with initial state
-        if self.cfg.entry_block:
-            entry_state = AnalysisState(
+        # Set initial state at entry
+        if self.cfg.entry_block is not None:
+            self.block_states[self.cfg.entry_block] = AnalysisState(
                 abstract_state=initial_state,
                 iteration_count=0
             )
-            self.block_states[self.cfg.entry_block.id] = entry_state
-            self.worklist.add(self.cfg.entry_block.id)
         
-        # Fixpoint iteration
+        # Worklist algorithm
+        worklist = [self.cfg.entry_block] if self.cfg.entry_block is not None else []
         iteration = 0
-        max_iterations = self.context.config.max_fixpoint_iterations
         
-        while self.worklist and iteration < max_iterations:
+        while worklist and iteration < self.max_iterations:
             iteration += 1
+            current_block_id = worklist.pop(0)
+            current_block = self.cfg.blocks[current_block_id]
             
-            # Pick a block from worklist
-            block_id = self.worklist.pop()
-            block = self.cfg.blocks[block_id]
-            
-            # Get input state by joining predecessor states
-            input_state = self._compute_join_state(block)
+            # Compute input state (join of predecessors)
+            input_state = self._compute_input_state(current_block)
             if input_state is None:
                 continue
                 
-            # Analyze the block
-            input_state.iteration_count = iteration
-            new_state = self._analyze_block(block, input_state)
+            # Analyze block
+            output_state = self._analyze_block(current_block, input_state)
             
-            # Check if state changed (with widening for loops)
-            if block_id in self.block_states:
-                old_state = self.block_states[block_id]
+            # Apply widening at loop headers
+            if current_block.is_loop_header and current_block_id in self.block_states:
+                old_state = self.block_states[current_block_id]
+                output_state = WideningOperator.widen_state(old_state, output_state)
+                output_state.iteration_count = old_state.iteration_count + 1
+            
+            # Check if state changed
+            if current_block_id not in self.block_states or \
+               not self.block_states[current_block_id].equals(output_state):
                 
-                # Apply widening if this is a loop header
-                if block.is_loop_header and iteration > 1:
-                    new_state = WideningOperator.widen_state(
-                        old_state, new_state, self.context.config.widening_threshold
-                    )
+                self.block_states[current_block_id] = output_state
                 
-                # Check for convergence
-                if not old_state.equals(new_state):
-                    self.block_states[block_id] = new_state
-                    # Add successors to worklist
-                    self.worklist.update(block.successors)
-            else:
-                # First time visiting this block
-                self.block_states[block_id] = new_state
-                self.worklist.update(block.successors)
-        
-        # Check if we hit the iteration limit
-        if self.worklist and iteration >= max_iterations:
-            self.context.add_warning(
-                f"Fixpoint analysis reached maximum iteration limit ({max_iterations}). "
-                "Analysis may be incomplete."
-            )
+                # Add successors to worklist
+                for successor in current_block.successors:
+                    if successor not in worklist:
+                        worklist.append(successor)
         
         return self.block_states
     
-    def _compute_join_state(self, block: BasicBlock) -> Optional[AnalysisState]:
-        """Compute input state by joining predecessor states."""
+    def _compute_input_state(self, block: BasicBlock) -> Optional[AnalysisState]:
+        """Compute input state for a block by joining predecessor states."""
         if not block.predecessors:
             # Entry block or unreachable
             return self.block_states.get(block.id)
@@ -240,45 +201,43 @@ class FixpointAnalyzer:
         # Start with copy of input state
         current_state = input_state.copy()
         
-        # Temporarily set the context's abstract state to this block's state
-        old_abstract_state = self.context.abstract_state
-        self.context.abstract_state = current_state.abstract_state
-        
-        try:
-            # Analyze each statement
-            for stmt in block.statements:
-                if isinstance(stmt, ast.Assign):
-                    # Use the context-aware analyze_assignment
-                    analyze_assignment(stmt, self.context)
-                    
-            # The abstract state in context has been modified by analyze_assignment
-            # Copy it back to the current state
-            current_state.abstract_state = self.context.abstract_state
-            
-        finally:
-            # Restore the old abstract state
-            self.context.abstract_state = old_abstract_state
+        # Analyze each statement
+        for stmt in block.statements:
+            if isinstance(stmt, ast.Assign):
+                # Update abstract state based on assignment
+                self._analyze_assignment(stmt, current_state.abstract_state)
                 
         return current_state
+    
+    def _analyze_assignment(self, node: ast.Assign, state: AbstractState):
+        """Analyze an assignment statement."""
+        # For now, delegate to the existing update_sign_state
+        # In the future, this should be enhanced to handle all domains
+        global _abstract_state
+        from src.regionai.discovery import abstract_domains
+        
+        # Temporarily set global state
+        old_state = abstract_domains._abstract_state
+        abstract_domains._abstract_state = state
+        
+        # Analyze
+        update_sign_state(node, [])
+        
+        # Restore
+        abstract_domains._abstract_state = old_state
 
 
-def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = None, 
-                         context: AnalysisContext = None) -> Dict[str, Any]:
+def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = None) -> Dict[str, Any]:
     """
     Analyze a program using fixpoint iteration.
     
     Args:
         tree: The AST to analyze
         initial_assumptions: Initial sign assumptions for variables
-        context: Analysis context to use (creates new one if not provided)
         
     Returns:
         Final abstract state and analysis results
     """
-    # Use provided context or create a new one
-    if context is None:
-        context = AnalysisContext()
-    
     # Build CFG
     cfg = build_cfg(tree)
     
@@ -289,7 +248,7 @@ def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = 
             initial_state.set_sign(var, sign)
     
     # Run fixpoint analysis
-    analyzer = FixpointAnalyzer(cfg, context)
+    analyzer = FixpointAnalyzer(cfg)
     block_states = analyzer.analyze(initial_state)
     
     # Extract final state (at exit block)
@@ -313,6 +272,5 @@ def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = 
         'final_state': final_state,
         'block_states': block_states,
         'cfg': cfg,
-        'loops': loop_analysis,
-        'context': context  # Include context with any errors/warnings
+        'loops': loop_analysis
     }

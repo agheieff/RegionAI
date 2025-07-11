@@ -83,6 +83,10 @@ class CallGraph:
             if not func_info.called_by:
                 self.entry_points.add(func_name)
     
+    def get_all_call_sites(self) -> List[CallSite]:
+        """Get all call sites in the program."""
+        return self.call_sites
+    
     def get_call_chain(self, start: str, end: str) -> Optional[List[str]]:
         """Find a call chain from start function to end function."""
         if start not in self.functions or end not in self.functions:

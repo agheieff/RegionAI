@@ -1,5 +1,6 @@
 """
 Interprocedural analysis engine for whole-program analysis.
+REFACTORED VERSION: Uses AnalysisContext instead of global state.
 """
 import ast
 from typing import Dict, List, Optional, Set, Tuple
@@ -14,9 +15,10 @@ from .function_summary import (
 from .summary import CallContext
 from .fixpoint import FixpointAnalyzer, AnalysisState
 from .cfg import build_cfg
+from .context import AnalysisContext
 from ..discovery.abstract_domains import (
     AbstractState, Sign, Nullability,
-    reset_abstract_state
+    analyze_assignment
 )
 from ..semantic.fingerprint import SemanticFingerprint, DocumentedFingerprint
 from ..semantic.fingerprinter import Fingerprinter
@@ -39,6 +41,7 @@ class AnalysisResult:
 class InterproceduralAnalyzer:
     """
     Performs whole-program interprocedural analysis.
+    REFACTORED: Now uses AnalysisContext for all state management.
     """
     
     def __init__(self):
@@ -46,8 +49,6 @@ class InterproceduralAnalyzer:
         self.function_asts: Dict[str, ast.FunctionDef] = {}
         self.summary_computer = SummaryComputer()
         self.context_cache = ContextSensitiveSummaryCache()
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
         self.fingerprinter = Fingerprinter()
         self.semantic_fingerprints: Dict[CallContext, SemanticFingerprint] = {}
         self.semantic_db = SemanticDB()
@@ -63,6 +64,9 @@ class InterproceduralAnalyzer:
             tree: AST of the program to analyze
             source_code: Optional source code for enhanced documentation extraction
         """
+        # Create analysis context for this analysis run
+        context = AnalysisContext()
+        
         # Store source code for documentation extraction
         self.source_code = source_code
         
@@ -81,7 +85,7 @@ class InterproceduralAnalyzer:
         # Initial analysis with default contexts
         for func_name in analysis_order:
             if func_name in self.function_asts:
-                self._analyze_function(func_name)
+                self._analyze_function(func_name, context)
                 
                 # Check if any analyzer added functions to worklist
                 if hasattr(self, '_last_analyzer') and self._last_analyzer:
@@ -99,22 +103,26 @@ class InterproceduralAnalyzer:
                                     param_state.sign_state[param_name] = next_state.sign_state[param_name]
                                 if hasattr(next_state, 'null_state') and param_name in next_state.null_state:
                                     param_state.null_state[param_name] = next_state.null_state[param_name]
-                                
+                                if hasattr(next_state, 'range_state') and param_name in next_state.range_state:
+                                    param_state.range_state[param_name] = next_state.range_state[param_name]
+                                    
                                 param_states.append(param_state)
-                        
-                        context = CallContext.from_call(next_func, param_states)
-                        
-                        if context not in analyzed_contexts:
-                            analyzed_contexts.add(context)
-                            self._analyze_function(next_func, next_state)
+                            
+                            check_context = CallContext.from_call(next_func, param_states)
+                            
+                            # Only analyze if not already done with this context
+                            if check_context not in analyzed_contexts:
+                                analyzed_contexts.add(check_context)
+                                self._analyze_function(next_func, context, next_state)
         
-        # Step 4: Perform global error checking
-        self._check_global_errors()
+        # Step 4: Check for global errors
+        self._check_global_errors(context)
         
+        # Return results
         return AnalysisResult(
             function_summaries=self.summary_computer.summaries,
-            errors=self.errors,
-            warnings=self.warnings,
+            errors=context.errors,
+            warnings=context.warnings,
             call_graph=self.call_graph,
             semantic_fingerprints=self.semantic_fingerprints,
             semantic_db=self.semantic_db,
@@ -124,19 +132,28 @@ class InterproceduralAnalyzer:
     def _collect_functions(self, tree: ast.AST):
         """Collect all function definitions."""
         class FunctionCollector(ast.NodeVisitor):
-            def __init__(self, container):
-                self.container = container
+            def __init__(self, analyzer):
+                self.analyzer = analyzer
                 
             def visit_FunctionDef(self, node):
-                self.container[node.name] = node
+                self.analyzer.function_asts[node.name] = node
                 self.generic_visit(node)
         
-        collector = FunctionCollector(self.function_asts)
-        collector.visit(tree)
+        FunctionCollector(self).visit(tree)
     
-    def _analyze_function(self, func_name: str, initial_param_state: Optional[AbstractState] = None):
-        """Analyze a single function with interprocedural context."""
-        func_ast = self.function_asts[func_name]
+    def _analyze_function(self, func_name: str, context: AnalysisContext, 
+                         initial_param_state: Optional[AbstractState] = None):
+        """
+        Analyze a single function with given context.
+        
+        Args:
+            func_name: Name of function to analyze
+            context: Analysis context containing all state
+            initial_param_state: Optional initial state for parameters
+        """
+        func_ast = self.function_asts.get(func_name)
+        if not func_ast:
+            return
         
         # Build CFG for the function
         cfg = build_cfg(func_ast)
@@ -157,7 +174,7 @@ class InterproceduralAnalyzer:
         
         # Create enhanced analyzer that handles function calls
         analyzer = InterproceduralFixpointAnalyzer(
-            cfg, self.call_graph, self.summary_computer, self.errors, self.warnings,
+            cfg, self.call_graph, self.summary_computer, context,
             self.fingerprinter, self.semantic_fingerprints
         )
         
@@ -196,19 +213,19 @@ class InterproceduralAnalyzer:
             
             param_states.append(param_state)
         
-        context = CallContext.from_call(func_name, param_states)
+        call_context = CallContext.from_call(func_name, param_states)
         
         # Store the summary with context in the analyzer's cache
-        analyzer.summaries[context] = summary
+        analyzer.summaries[call_context] = summary
         
         # Also store in summary computer for compatibility
         if not hasattr(self.summary_computer, 'context_summaries'):
             self.summary_computer.context_summaries = {}
-        self.summary_computer.context_summaries[context] = summary
+        self.summary_computer.context_summaries[call_context] = summary
         
         # Generate semantic fingerprint for this context
-        fingerprint = self.fingerprinter.fingerprint(context, summary)
-        self.semantic_fingerprints[context] = fingerprint
+        fingerprint = self.fingerprinter.fingerprint(call_context, summary)
+        self.semantic_fingerprints[call_context] = fingerprint
         
         # Extract documentation context
         func_ast = self.function_asts.get(func_name)
@@ -222,55 +239,52 @@ class InterproceduralAnalyzer:
                 fingerprint=fingerprint,
                 nl_context=nl_context
             )
-            self.documented_fingerprints[context] = documented_fp
+            self.documented_fingerprints[call_context] = documented_fp
         
         # Add to semantic database
         semantic_entry = SemanticEntry(
             function_name=FunctionName(func_name),
-            context=context,
+            context=call_context,
             fingerprint=fingerprint,
-            documented_fingerprint=self.documented_fingerprints.get(context)
+            documented_fingerprint=self.documented_fingerprints.get(call_context)
         )
         self.semantic_db.add(semantic_entry)
         
         # Store analyzer reference for worklist processing
         self._last_analyzer = analyzer
     
-    def _check_global_errors(self):
-        """Check for errors that span multiple functions."""
-        # Example: Check for null propagation across functions
-        for call_site in self.call_graph.call_sites:
-            self._check_call_site_safety(call_site)
-    
-    def _check_call_site_safety(self, call_site):
-        """Check if a function call is safe."""
-        caller_summary = self.summary_computer.summaries.get(call_site.caller)
-        callee_summary = self.summary_computer.summaries.get(call_site.callee)
-        
-        if not caller_summary or not callee_summary:
-            return
-        
-        # Check preconditions
-        for precond in callee_summary.preconditions:
-            # Simplified check - in practice would evaluate precondition
-            if "!= 0" in precond:
-                self.warnings.append(
-                    f"Call from {call_site.caller} to {call_site.callee} "
-                    f"at line {call_site.line_number}: ensure {precond}"
-                )
+    def _check_global_errors(self, context: AnalysisContext):
+        """Check for errors across function boundaries."""
+        # Check call sites against function summaries
+        for call_site in self.call_graph.get_all_call_sites():
+            caller_summary = self.summary_computer.summaries.get(call_site.caller)
+            callee_summary = self.summary_computer.summaries.get(call_site.callee)
+            
+            if not caller_summary or not callee_summary:
+                continue
+            
+            # Check preconditions
+            for precond in callee_summary.preconditions:
+                # Simplified check - in practice would evaluate precondition
+                if "!= 0" in precond:
+                    context.add_warning(
+                        f"Call from {call_site.caller} to {call_site.callee} "
+                        f"at line {call_site.line_number}: ensure {precond}"
+                    )
 
 
 class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
     """
     Enhanced fixpoint analyzer that handles interprocedural calls.
+    REFACTORED: Now uses AnalysisContext instead of direct error/warning lists.
     """
     
-    def __init__(self, cfg, call_graph, summary_computer, errors, warnings, fingerprinter=None, semantic_fingerprints=None):
+    def __init__(self, cfg, call_graph, summary_computer, context: AnalysisContext,
+                 fingerprinter=None, semantic_fingerprints=None):
         super().__init__(cfg)
         self.call_graph = call_graph
         self.summary_computer = summary_computer
-        self.errors = errors
-        self.warnings = warnings
+        self.context = context  # Use context instead of error/warning lists
         # Cache for context-sensitive function summaries
         self.summaries: Dict[CallContext, FunctionSummary] = {}
         # Track functions to analyze with specific contexts
@@ -278,6 +292,9 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         # Optional fingerprinting support
         self.fingerprinter = fingerprinter
         self.semantic_fingerprints = semantic_fingerprints or {}
+        # Store reference to semantic fingerprints dict
+        if semantic_fingerprints is not None:
+            self.semantic_fingerprints = semantic_fingerprints
     
     def _analyze_block(self, block, input_state):
         """Override to handle function calls."""
@@ -289,11 +306,11 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
                 if isinstance(stmt.value, ast.Call):
                     self._handle_function_call(stmt, current_state)
                 else:
-                    # Regular assignment
-                    self._analyze_assignment(stmt, current_state.abstract_state)
+                    # Regular assignment - use context-aware function
+                    analyze_assignment(stmt, self.context)
             
             # Check for null dereferences
-            self._check_null_safety(stmt, current_state.abstract_state)
+            self._check_null_safety(stmt, self.context)
         
         return current_state
     
@@ -389,62 +406,56 @@ class InterproceduralFixpointAnalyzer(FixpointAnalyzer):
         
         # Check for potential errors
         if summary.returns.may_throw:
-            self.warnings.append(
+            self.context.add_warning(
                 f"Function {summary.function_name} may throw exception"
             )
     
-    def _check_null_safety(self, stmt: ast.AST, state: AbstractState):
-        """Check for null pointer dereferences."""
-        class NullCheckVisitor(ast.NodeVisitor):
-            def __init__(self, analyzer, state):
-                self.analyzer = analyzer
-                self.state = state
-                
-            def visit_Attribute(self, node):
-                # Check obj.attr for null safety
-                if isinstance(node.value, ast.Name):
-                    var_name = node.value.id
-                    null_state = self.state.get_nullability(var_name)
-                    
-                    if null_state == Nullability.DEFINITELY_NULL:
-                        self.analyzer.errors.append(
-                            f"Null pointer exception: {var_name}.{node.attr}"
-                        )
-                    elif null_state == Nullability.NULLABLE:
-                        self.analyzer.warnings.append(
-                            f"Potential null pointer: {var_name}.{node.attr}"
-                        )
-                
-                self.generic_visit(node)
+    def _check_null_safety(self, stmt: ast.AST, context: AnalysisContext):
+        """Check for null pointer dereferences using context."""
+        from ..discovery.abstract_domains import check_null_dereference
         
-        visitor = NullCheckVisitor(self, state)
-        visitor.visit(stmt)
+        # Use the refactored function that accepts context
+        errors = check_null_dereference(stmt, context)
+        for error in errors:
+            if "exception" in error:
+                context.add_error(error)
+            else:
+                context.add_warning(error)
     
-    def _create_callee_initial_state(self, func_name: str, arg_states: List[AbstractState]) -> AbstractState:
-        """Create initial state for a function based on argument states."""
-        initial_state = AbstractState()
+    def _create_callee_initial_state(self, callee_name: str, 
+                                   arg_states: List[AbstractState]) -> AbstractState:
+        """Create initial state for callee based on arguments."""
+        # This would map argument states to parameter names
+        # For now, return a simple combined state
+        combined = AbstractState()
         
-        # Get function parameters
-        if func_name in self.call_graph.functions:
-            func_info = self.call_graph.functions[func_name]
-            params = func_info.parameters
+        # In a real implementation, would map to parameter names
+        for i, arg_state in enumerate(arg_states):
+            # Merge all argument states (simplified)
+            for var, sign in arg_state.sign_state.items():
+                if var == '__const__':
+                    # Map to parameter name (would need function signature)
+                    param_name = f'param_{i}'
+                    combined.sign_state[param_name] = sign
             
-            # Map argument states to parameters
-            for i, (param, arg_state) in enumerate(zip(params, arg_states)):
-                # Transfer properties from argument to parameter
-                for var, sign in getattr(arg_state, 'sign_state', {}).items():
-                    initial_state.sign_state[param] = sign
-                for var, null in getattr(arg_state, 'null_state', {}).items():
-                    initial_state.null_state[param] = null
-                for var, range_val in getattr(arg_state, 'range_state', {}).items():
-                    initial_state.range_state[param] = range_val
+            for var, null in arg_state.null_state.items():
+                if var == '__const__':
+                    param_name = f'param_{i}'
+                    combined.null_state[param_name] = null
         
-        return initial_state
+        return combined
 
 
-def analyze_interprocedural(tree: ast.AST) -> AnalysisResult:
+def analyze_interprocedural(tree: ast.AST, source_code: Optional[str] = None) -> AnalysisResult:
     """
     Perform interprocedural analysis on a program.
+    
+    Args:
+        tree: AST of the program to analyze
+        source_code: Optional source code for enhanced documentation extraction
+        
+    Returns:
+        AnalysisResult containing analysis results
     """
     analyzer = InterproceduralAnalyzer()
-    return analyzer.analyze_program(tree)
+    return analyzer.analyze_program(tree, source_code)

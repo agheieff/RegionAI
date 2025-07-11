@@ -5,7 +5,7 @@ This module provides the foundation for RegionAI's Common Sense Engine,
 enabling it to build and reason about a structured model of reality
 based on the code it analyzes.
 """
-from typing import Any, Dict, List, Optional, Set, Tuple, NewType
+from typing import Any, Dict, List, Optional, Set, Tuple, NewType, Union
 from dataclasses import dataclass, field
 from datetime import datetime
 import networkx as nx
@@ -69,6 +69,11 @@ class ConceptMetadata:
             'docstring_mentions': self.docstring_mentions,
             'properties': self.properties
         }
+    
+    @property
+    def confidence(self) -> float:
+        """Backward compatibility property - returns belief."""
+        return self.belief
 
 
 @dataclass
@@ -113,6 +118,11 @@ class RelationMetadata:
             'evidence_functions': self.evidence_functions,
             'evidence_patterns': self.evidence_patterns
         }
+    
+    @property
+    def confidence(self) -> float:
+        """Backward compatibility property - returns belief."""
+        return self.belief
 
 
 class KnowledgeGraph:
@@ -148,6 +158,10 @@ class KnowledgeGraph:
             concept: The concept name (e.g., "User", "Invoice")
             metadata: Optional metadata about how this concept was discovered
         """
+        # Don't overwrite existing concepts
+        if concept in self.graph:
+            return
+            
         if metadata is None:
             metadata = ConceptMetadata()
         
@@ -191,7 +205,7 @@ class KnowledgeGraph:
             if evidence not in metadata.evidence_patterns:
                 metadata.evidence_patterns.append(evidence)
         
-        # Ensure both concepts exist
+        # Ensure both concepts exist (but don't overwrite existing metadata)
         if source not in self.graph:
             self.add_concept(source)
         if target not in self.graph:
@@ -232,8 +246,11 @@ class KnowledgeGraph:
         """Get all concepts in the graph."""
         return [Concept(node) for node in self.graph.nodes()]
     
-    def get_concept_metadata(self, concept: Concept) -> Optional[ConceptMetadata]:
+    def get_concept_metadata(self, concept: Union[Concept, str]) -> Optional[ConceptMetadata]:
         """Get metadata for a specific concept."""
+        # Handle string input for backward compatibility
+        if isinstance(concept, str):
+            concept = Concept(concept)
         if concept in self.graph:
             return self.graph.nodes[concept].get('metadata')
         return None

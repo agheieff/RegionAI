@@ -3,9 +3,9 @@ Tests for context-sensitive interprocedural analysis.
 """
 import ast
 import pytest
-from src.regionai.analysis.interprocedural import InterproceduralAnalyzer
-from src.regionai.discovery.abstract_domains import Sign, Nullability, reset_abstract_state
-from src.regionai.analysis.summary import CallContext
+from regionai.analysis.interprocedural import InterproceduralAnalyzer
+from regionai.discovery.abstract_domains import Sign, Nullability, reset_abstract_state
+from regionai.analysis.summary import CallContext
 
 
 class TestContextSensitiveAnalysis:

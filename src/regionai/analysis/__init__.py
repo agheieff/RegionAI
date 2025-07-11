@@ -8,7 +8,6 @@ from .function_summary import FunctionSummary, SummaryComputer
 from .context import AnalysisContext
 # Avoid circular import - import interprocedural directly when needed
 # from .interprocedural import InterproceduralAnalyzer, analyze_interprocedural
-# Note: interprocedural_refactored.py contains the version that uses AnalysisContext
 
 __all__ = [
     'ControlFlowGraph',

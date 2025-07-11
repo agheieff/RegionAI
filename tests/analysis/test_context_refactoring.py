@@ -10,7 +10,7 @@ import ast
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.analysis.context import AnalysisContext, RegionAIConfig
-from regionai.analysis.fixpoint_refactored import analyze_with_fixpoint
+from regionai.analysis.fixpoint import analyze_with_fixpoint
 from regionai.discovery.abstract_domains import (
     Sign, Nullability, analyze_sign, check_null_dereference,
     prove_property, analyze_assignment
@@ -195,14 +195,14 @@ def test_config_usage():
     
     config = RegionAIConfig(
         widening_threshold=5,
-        max_iterations=50,
+        max_fixpoint_iterations=50,
         enable_path_sensitivity=True
     )
     
     context = AnalysisContext(config=config)
     
     assert context.config.widening_threshold == 5
-    assert context.config.max_iterations == 50
+    assert context.config.max_fixpoint_iterations == 50
     assert context.config.enable_path_sensitivity == True
     
     print("✓ RegionAIConfig works correctly")

@@ -14,7 +14,7 @@ from regionai.config import (
     fast_analysis_config, precise_analysis_config, debug_analysis_config
 )
 from regionai.analysis.context import AnalysisContext
-from regionai.analysis.fixpoint_refactored import analyze_with_fixpoint
+from regionai.analysis.fixpoint import analyze_with_fixpoint
 from regionai.pipeline.api import analyze_code, find_pure_functions, build_knowledge_graph
 
 
