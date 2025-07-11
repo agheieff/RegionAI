@@ -149,33 +149,72 @@ class KnowledgeLinker(OptionalComponentMixin):
         """
         variations = {}
         
+        # First, build a map of plural concepts to their singular forms
+        singular_map = {}
+        for concept in self.concepts:
+            concept_str = str(concept)
+            # Check if this might be a plural
+            if concept_str.endswith('s') and len(concept_str) > 2:
+                # Check for singular form
+                possible_singular = concept_str[:-1]
+                for other in self.concepts:
+                    if str(other) == possible_singular:
+                        singular_map[concept] = other
+                        break
+                
+                # Check for -ies -> -y pattern
+                if concept_str.endswith('ies'):
+                    possible_singular = concept_str[:-3] + 'y'
+                    for other in self.concepts:
+                        if str(other) == possible_singular:
+                            singular_map[concept] = other
+                            break
+        
         for concept in self.concepts:
             concept_str = str(concept)
             
+            # If this is a plural form and we have a singular, skip it
+            # and let the singular form handle all variations
+            if concept in singular_map:
+                continue
+            
+            # Use the canonical (singular) form for all variations
+            canonical_concept = singular_map.get(concept, concept)
+            
             # Original
-            variations[concept_str.lower()] = concept
+            variations[concept_str.lower()] = canonical_concept
             
             # Plural/singular  
             if concept_str.endswith('y'):
                 # Handle words ending in 'y' -> 'ies' (e.g., Category -> Categories)
                 plural = concept_str[:-1] + 'ies'
-                variations[plural.lower()] = concept
+                variations[plural.lower()] = canonical_concept
                 # Also add capitalized version
-                variations[plural] = concept
+                variations[plural] = canonical_concept
             elif concept_str.endswith('s'):
                 # Already plural, add singular
-                variations[concept_str[:-1].lower()] = concept
+                variations[concept_str[:-1].lower()] = canonical_concept
             else:
                 # Add plural
-                variations[(concept_str + 's').lower()] = concept
+                variations[(concept_str + 's').lower()] = canonical_concept
                 # Also handle common pluralizations
                 if concept_str.endswith('x') or concept_str.endswith('ch') or concept_str.endswith('sh'):
-                    variations[(concept_str + 'es').lower()] = concept
+                    variations[(concept_str + 'es').lower()] = canonical_concept
             
             # With articles
-            variations[f"a {concept_str.lower()}"] = concept
-            variations[f"an {concept_str.lower()}"] = concept
-            variations[f"the {concept_str.lower()}"] = concept
+            variations[f"a {concept_str.lower()}"] = canonical_concept
+            variations[f"an {concept_str.lower()}"] = canonical_concept
+            variations[f"the {concept_str.lower()}"] = canonical_concept
+            
+        # Now add variations for plural concepts that map to their singular forms
+        for plural_concept, singular_concept in singular_map.items():
+            plural_str = str(plural_concept)
+            # Map the plural form to the singular concept
+            variations[plural_str.lower()] = singular_concept
+            # Also map with articles
+            variations[f"a {plural_str.lower()}"] = singular_concept
+            variations[f"an {plural_str.lower()}"] = singular_concept  
+            variations[f"the {plural_str.lower()}"] = singular_concept
             
         return variations
     
