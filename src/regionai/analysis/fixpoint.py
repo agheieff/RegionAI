@@ -39,19 +39,26 @@ class AnalysisState:
     abstract_state: AbstractState
     iteration_count: int = 0
     path_constraints: List[PathConstraint] = field(default_factory=list)
+    points_to_map: Dict[str, Set['AbstractLocation']] = field(default_factory=dict)
     
     def copy(self) -> 'AnalysisState':
         """Create a deep copy of the state."""
         new_state = AnalysisState(
             abstract_state=AbstractState(),
             iteration_count=self.iteration_count,
-            path_constraints=self.path_constraints.copy()  # Copy the list of constraints
+            path_constraints=self.path_constraints.copy(),  # Copy the list of constraints
+            points_to_map={}  # Will copy below
         )
         # Copy sign states
         new_state.abstract_state.sign_state = dict(self.abstract_state.sign_state)
         new_state.abstract_state.null_state = dict(self.abstract_state.null_state)
         if hasattr(self.abstract_state, 'range_state'):
             new_state.abstract_state.range_state = dict(self.abstract_state.range_state)
+        
+        # Copy points-to map (deep copy the sets)
+        for var, pts in self.points_to_map.items():
+            new_state.points_to_map[var] = pts.copy()
+        
         return new_state
     
     def equals(self, other: 'AnalysisState') -> bool:
@@ -85,6 +92,10 @@ class AnalysisState:
             else:
                 # Different signs -> TOP (conservative approximation)
                 result.abstract_state.sign_state[var] = Sign.TOP
+        
+        # Join points-to maps (union of points-to sets)
+        from .alias_analysis import merge_points_to_maps
+        result.points_to_map = merge_points_to_maps(self.points_to_map, other.points_to_map)
                 
         result.iteration_count = max(self.iteration_count, other.iteration_count)
         return result
@@ -263,15 +274,31 @@ class FixpointAnalyzer:
         
         Uses the main context for configuration and error reporting while
         passing the current abstract state explicitly to analysis functions.
+        Now also tracks alias relationships.
         """
         # Start with copy of input state
         current_state = input_state.copy()
         
-        # Analyze each statement, passing the abstract state explicitly
+        # Update context's points-to map with current state
+        self.context.points_to_map = current_state.points_to_map.copy()
+        
+        # Analyze each statement, including alias analysis
+        from .alias_analysis import analyze_statement_for_aliases
+        
         for stmt in block.statements:
             if isinstance(stmt, ast.Assign):
-                # Pass the main context and current abstract state
+                # First do alias analysis
+                analyze_statement_for_aliases(stmt, self.context)
+                
+                # Then regular abstract domain analysis
                 analyze_assignment(stmt, self.context, current_state.abstract_state)
+            
+            elif isinstance(stmt, ast.Delete):
+                # Handle deletions for alias analysis
+                analyze_statement_for_aliases(stmt, self.context)
+        
+        # Copy updated points-to map back to state
+        current_state.points_to_map = self.context.points_to_map.copy()
                     
         return current_state
     
