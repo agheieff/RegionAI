@@ -171,12 +171,14 @@ def test_evidence_tracking():
     # Check the relationship was added with evidence
     product_rels = enriched_kg.get_relations_with_confidence(Concept("Product"))
     
+    # Look specifically for the BELONGS_TO relationship since we may have multiple
+    # relationships between Product and Category (e.g., RELATED_TO from co-occurrence)
     category_rel = next(
-        (r for r in product_rels if r['target'] == Concept("Category")),
+        (r for r in product_rels if r['target'] == Concept("Category") and r['relation'] == 'BELONGS_TO'),
         None
     )
     
-    assert category_rel is not None
+    assert category_rel is not None, "BELONGS_TO relationship not found between Product and Category"
     assert evidence_text in category_rel['evidence']
     assert category_rel['metadata'] is not None
     assert 'get_product_category' in category_rel['metadata'].evidence_functions

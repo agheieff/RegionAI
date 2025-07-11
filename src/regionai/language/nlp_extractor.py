@@ -6,9 +6,9 @@ meaningful words from code identifiers, replacing hardcoded term lists
 with intelligent POS tagging.
 """
 import re
-from typing import List, Set, Optional
-import spacy
-from spacy.language import Language
+from typing import List
+
+from ..utils.component_loader import get_nlp_model
 
 
 class NLPExtractor:
@@ -27,26 +27,12 @@ class NLPExtractor:
         Args:
             model_name: Name of the spaCy model to load (default: en_core_web_sm)
         """
-        self.nlp = self._load_model(model_name)
+        self.model_name = model_name
+        self.nlp = get_nlp_model(model_name)
         
-    def _load_model(self, model_name: str) -> Language:
-        """
-        Load the spaCy model with error handling.
-        
-        Args:
-            model_name: Name of the spaCy model to load
-            
-        Returns:
-            Loaded spaCy Language object
-            
-        Raises:
-            OSError: If the model is not installed
-        """
-        try:
-            return spacy.load(model_name)
-        except OSError:
-            raise OSError(
-                f"spaCy model '{model_name}' not found. "
+        if self.nlp is None:
+            raise RuntimeError(
+                f"Failed to load required spaCy model '{model_name}'. "
                 f"Please install it with: python -m spacy download {model_name}"
             )
     

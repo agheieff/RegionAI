@@ -18,6 +18,7 @@ from .bayesian_updater import BayesianUpdater
 from ..language.nlp_extractor import NLPExtractor
 from ..language.grammar_extractor import GrammarPatternExtractor
 from .action_discoverer import ActionDiscoverer
+from ..utils.component_loader import OptionalComponentMixin
 
 
 class RelationshipPattern:
@@ -82,7 +83,7 @@ class RelationshipPattern:
     }
 
 
-class KnowledgeLinker:
+class KnowledgeLinker(OptionalComponentMixin):
     """
     Enriches a KnowledgeGraph by finding relationships described in the
     natural language documentation of a SemanticDB.
@@ -107,22 +108,26 @@ class KnowledgeLinker:
         # Initialize Bayesian updater for belief updates
         self.bayesian_updater = BayesianUpdater(knowledge_graph)
         
-        # Initialize NLP extractor for intelligent concept extraction
-        try:
-            self.nlp_extractor = NLPExtractor()
-        except OSError:
-            self.logger.warning("spaCy model not found. Using basic extraction.")
-            self.nlp_extractor = None
+        # Initialize optional components using standardized loader
+        self._init_optional_component(
+            component_name="NLP Extractor",
+            loader_func=lambda: NLPExtractor(),
+            attr_name="nlp_extractor",
+            error_types=(OSError, ImportError, RuntimeError),
+            warning_message="spaCy model not found. Using basic extraction."
+        )
         
         # Initialize action discoverer for behavior understanding
         self.action_discoverer = ActionDiscoverer()
         
-        # Initialize grammar pattern extractor for language understanding
-        try:
-            self.grammar_extractor = GrammarPatternExtractor()
-        except (OSError, ImportError):
-            self.logger.warning("Could not initialize GrammarPatternExtractor. Grammar extraction disabled.")
-            self.grammar_extractor = None
+        # Initialize grammar pattern extractor using standardized loader
+        self._init_optional_component(
+            component_name="Grammar Pattern Extractor",
+            loader_func=lambda: GrammarPatternExtractor(),
+            attr_name="grammar_extractor",
+            error_types=(OSError, ImportError, RuntimeError),
+            warning_message="Could not initialize GrammarPatternExtractor. Grammar extraction disabled."
+        )
         
         # Track discovered relationships for reporting
         self._discovered_relationships: List[Dict[str, any]] = []
@@ -627,19 +632,47 @@ class KnowledgeLinker:
                         )
                         sentence_concepts.append(str(concept_match))
                     else:
-                        # Create new concept
-                        concept = Concept(noun.title())
-                        self.bayesian_updater.update_concept_belief(
-                            concept,
-                            evidence_type,
-                            source_credibility * 0.7  # Lower confidence for new concepts from text
-                        )
-                        sentence_concepts.append(noun.title())
+                        # Before creating a new concept, try harder to match plurals
+                        # Check if this is just a plural of an existing concept
+                        singular_match = None
+                        noun_lower = noun.lower()
                         
-                        # Add to our concept set
-                        if concept not in self.concepts:
-                            self.concepts.add(concept)
-                            self._concept_variations = self._build_concept_variations()
+                        # Try removing common plural endings
+                        if noun_lower.endswith('ies'):
+                            # e.g., "categories" -> "category"
+                            singular = noun_lower[:-3] + 'y'
+                            singular_match = self._find_matching_concept(singular)
+                        elif noun_lower.endswith('es'):
+                            # e.g., "boxes" -> "box"
+                            singular = noun_lower[:-2]
+                            singular_match = self._find_matching_concept(singular)
+                        elif noun_lower.endswith('s'):
+                            # e.g., "products" -> "product"
+                            singular = noun_lower[:-1]
+                            singular_match = self._find_matching_concept(singular)
+                        
+                        if singular_match:
+                            # Found a match for the singular form
+                            self.bayesian_updater.update_concept_belief(
+                                singular_match,
+                                evidence_type,
+                                source_credibility
+                            )
+                            sentence_concepts.append(str(singular_match))
+                        else:
+                            # Create new concept
+                            concept = Concept(noun.title())
+                            self.bayesian_updater.update_concept_belief(
+                                concept,
+                                evidence_type,
+                                source_credibility * 0.7  # Lower confidence for new concepts from text
+                            )
+                            sentence_concepts.append(noun.title())
+                            
+                            # Add to our concept set
+                            if concept not in self.concepts:
+                                self.concepts.add(concept)
+                                self._concept_variations = self._build_concept_variations()
                 
                 # Process co-occurrences within each sentence
                 if len(sentence_concepts) >= 2:
@@ -682,7 +715,6 @@ class KnowledgeLinker:
             source_credibility: Credibility of the source
         """
         # Generate all unique pairs of concepts
-        from itertools import combinations
         
         for i, concept1 in enumerate(concepts):
             for concept2 in concepts[i+1:]:

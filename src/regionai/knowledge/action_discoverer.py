@@ -6,11 +6,12 @@ in code and link them to the concepts they operate on. It represents
 RegionAI's understanding of behavior - not just what exists, but what happens.
 """
 import ast
-from typing import List, Tuple, Dict, Optional, Set
+from typing import List, Tuple, Optional
 from dataclasses import dataclass
 import logging
 
 from ..language.nlp_extractor import NLPExtractor
+from ..utils.component_loader import OptionalComponentMixin
 
 
 @dataclass
@@ -88,7 +89,7 @@ class SequentialActionVisitor(ast.NodeVisitor):
             self.visit(stmt)
 
 
-class ActionDiscoverer:
+class ActionDiscoverer(OptionalComponentMixin):
     """
     Discovers actions (verbs) from function bodies by analyzing AST.
     
@@ -101,12 +102,14 @@ class ActionDiscoverer:
         """Initialize the action discoverer."""
         self.logger = logging.getLogger(__name__)
         
-        # Initialize NLP extractor for verb analysis
-        try:
-            self.nlp_extractor = NLPExtractor()
-        except OSError:
-            self.logger.warning("spaCy model not found. Using fallback verb extraction.")
-            self.nlp_extractor = None
+        # Initialize NLP extractor for verb analysis using standardized loader
+        self._init_optional_component(
+            component_name="NLP Extractor",
+            loader_func=lambda: NLPExtractor(),
+            attr_name="nlp_extractor",
+            error_types=(OSError, ImportError),
+            warning_message="spaCy model not found. Using fallback verb extraction."
+        )
         
         # Common action verbs in programming (fallback list)
         self.common_action_verbs = {

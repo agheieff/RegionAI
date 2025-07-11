@@ -10,14 +10,7 @@ import logging
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
-try:
-    import spacy
-    from spacy.tokens import Token, Doc
-except ImportError:
-    raise ImportError(
-        "spaCy is required for grammatical pattern extraction. "
-        "Please install it with: pip install spacy"
-    )
+from ..utils.component_loader import OptionalComponentMixin, get_nlp_model, requires_component
 
 
 @dataclass
@@ -41,7 +34,7 @@ class GrammaticalPattern:
         return (self.subject, self.verb, self.object)
 
 
-class GrammarPatternExtractor:
+class GrammarPatternExtractor(OptionalComponentMixin):
     """
     Extracts grammatical patterns from natural language text.
     
@@ -58,18 +51,20 @@ class GrammarPatternExtractor:
             model_name: Name of the spaCy model to use
         """
         self.logger = logging.getLogger(__name__)
+        self.model_name = model_name
         
-        try:
-            self.nlp = spacy.load(model_name)
-        except OSError:
-            self.logger.error(
-                f"spaCy model '{model_name}' not found. "
+        # Get the cached NLP model using centralized loader
+        self.nlp = get_nlp_model(model_name)
+        
+        if self.nlp is None:
+            raise RuntimeError(
+                f"Failed to load required spaCy model '{model_name}'. "
                 f"Please install it with: python -m spacy download {model_name}"
             )
-            raise
         
         self.logger.info(f"Initialized GrammarPatternExtractor with {model_name}")
     
+    @requires_component('nlp', "spaCy model is required for pattern extraction")
     def extract_patterns(self, text: str) -> List[GrammaticalPattern]:
         """
         Extract grammatical patterns from text.
@@ -99,7 +94,7 @@ class GrammarPatternExtractor:
         
         return patterns
     
-    def _extract_from_sentence(self, sent: Doc) -> List[GrammaticalPattern]:
+    def _extract_from_sentence(self, sent) -> List[GrammaticalPattern]:
         """
         Extract patterns from a single sentence.
         
@@ -131,7 +126,7 @@ class GrammarPatternExtractor:
         
         return patterns
     
-    def _extract_svo_from_verb(self, verb: Token, sent: Doc) -> Optional[GrammaticalPattern]:
+    def _extract_svo_from_verb(self, verb, sent) -> Optional[GrammaticalPattern]:
         """
         Extract Subject-Verb-Object pattern from a verb token.
         
@@ -200,7 +195,7 @@ class GrammarPatternExtractor:
             confidence=confidence
         )
     
-    def _extract_copular_patterns(self, sent: Doc) -> List[GrammaticalPattern]:
+    def _extract_copular_patterns(self, sent) -> List[GrammaticalPattern]:
         """
         Extract patterns from copular sentences (e.g., "X is Y").
         
