@@ -4,18 +4,21 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from ..spaces.concept_space import ConceptSpaceND
 from ..engine.pathfinder import Pathfinder
+from ..config import RegionAIConfig, DEFAULT_CONFIG
+from typing import Optional
 
 
 class InteractivePlotter:
     """Interactive plotter for N-dimensional concept spaces with 2D projection."""
 
-    def __init__(self, space: ConceptSpaceND, dim_x: int = 0, dim_y: int = 1):
+    def __init__(self, space: ConceptSpaceND, dim_x: int = 0, dim_y: int = 1, config: Optional[RegionAIConfig] = None):
         """Initialize the plotter with an N-dimensional concept space.
 
         Args:
             space: The N-dimensional concept space to visualize
             dim_x: Which dimension to display on the X axis (default: 0)
             dim_y: Which dimension to display on the Y axis (default: 1)
+            config: Optional configuration object (uses DEFAULT_CONFIG if not provided)
         """
         self.space = space
         self.dim_x = dim_x
@@ -24,16 +27,19 @@ class InteractivePlotter:
         self.ax = None
         self.patches = {}  # Map from region name to matplotlib patch
         self.selected_region = None
+        
+        # Use provided config or default
+        self.config = config or DEFAULT_CONFIG
 
         # Pathfinding state
         self.pathfinding_start = None
         self.pathfinding_path = []
 
-        # Hard-coded colors for simplicity
-        self.default_color = "blue"
-        self.selected_color = "red"
-        self.alpha = 0.3
-        self.selected_alpha = 0.6
+        # Colors and visual settings from config
+        self.default_color = self.config.viz_default_color
+        self.selected_color = self.config.viz_selected_color
+        self.alpha = self.config.viz_default_alpha
+        self.selected_alpha = self.config.viz_selected_alpha
 
     def _reset_state(self):
         """Reset all UI state."""
@@ -44,7 +50,7 @@ class InteractivePlotter:
     def show(self):
         """Create and display the interactive plot."""
         # Create figure and axis
-        self.fig, self.ax = plt.subplots(figsize=(10, 10))
+        self.fig, self.ax = plt.subplots(figsize=self.config.viz_figure_size)
 
         # Initial draw
         self._redraw_plot()
@@ -64,7 +70,7 @@ class InteractivePlotter:
 
         # Re-setup axes
         self.ax.set_aspect("equal")
-        self.ax.grid(True, alpha=0.3)
+        self.ax.grid(True, alpha=self.config.viz_grid_alpha)
         self.ax.set_xlabel(f"Dimension {self.dim_x}")
         self.ax.set_ylabel(f"Dimension {self.dim_y}")
         
@@ -108,24 +114,25 @@ class InteractivePlotter:
             # State-based styling with order of precedence
             if self.pathfinding_path and name in self.pathfinding_path:
                 # Path Found: Vibrant success style
-                facecolor = "orange"
-                edgecolor = "black"
-                alpha = 0.7
-                linewidth = 4
+                path_index = self.pathfinding_path.index(name)
+                facecolor = self.config.viz_path_colors[path_index % len(self.config.viz_path_colors)]
+                edgecolor = self.config.viz_path_edge_color
+                alpha = self.config.viz_path_alpha
+                linewidth = self.config.viz_line_widths[3] if len(self.config.viz_line_widths) > 3 else 4
                 linestyle = "-"
             elif name == self.pathfinding_start:
                 # Pathfinding Start: Waiting for input style
-                facecolor = "purple"
-                edgecolor = "purple"
-                alpha = 0.6
-                linewidth = 3
+                facecolor = self.config.viz_path_colors[1] if len(self.config.viz_path_colors) > 1 else "purple"
+                edgecolor = facecolor
+                alpha = self.config.viz_selected_alpha
+                linewidth = self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3
                 linestyle = "--"
             elif name == self.selected_region:
                 # Simple Selection: Selected style
                 facecolor = self.selected_color
                 edgecolor = self.selected_color
                 alpha = self.selected_alpha
-                linewidth = 3
+                linewidth = self.config.viz_line_widths[2] if len(self.config.viz_line_widths) > 2 else 3
                 linestyle = "-"
             elif self.selected_region and name != self.selected_region:
                 # Check parent/child relationships when something is selected
@@ -134,31 +141,31 @@ class InteractivePlotter:
 
                 if selected_region and current_region.contains(selected_region):
                     # This is a parent of the selected region
-                    facecolor = "lightblue"
-                    edgecolor = "darkblue"
-                    alpha = 0.5
-                    linewidth = 2
+                    facecolor = self.config.viz_path_colors[2] if len(self.config.viz_path_colors) > 2 else "lightblue"
+                    edgecolor = self.config.viz_path_colors[3] if len(self.config.viz_path_colors) > 3 else "darkblue"
+                    alpha = self.config.viz_default_alpha + 0.2  # Slightly more visible than default
+                    linewidth = self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2
                     linestyle = "--"  # Dashed for parents
                 elif selected_region and selected_region.contains(current_region):
                     # This is a child of the selected region
-                    facecolor = "lightgreen"
-                    edgecolor = "darkgreen"
-                    alpha = 0.5
-                    linewidth = 2
+                    facecolor = self.config.viz_path_colors[4] if len(self.config.viz_path_colors) > 4 else "lightgreen"
+                    edgecolor = self.config.viz_path_colors[5] if len(self.config.viz_path_colors) > 5 else "darkgreen"
+                    alpha = self.config.viz_default_alpha + 0.2  # Slightly more visible than default
+                    linewidth = self.config.viz_line_widths[1] if len(self.config.viz_line_widths) > 1 else 2
                     linestyle = ":"  # Dotted for children
                 else:
                     # Default: Neutral style
                     facecolor = self.default_color
                     edgecolor = self.default_color
                     alpha = self.alpha
-                    linewidth = 1
+                    linewidth = self.config.viz_line_widths[0] if len(self.config.viz_line_widths) > 0 else 1
                     linestyle = "-"
             else:
                 # Default: Neutral style
                 facecolor = self.default_color
                 edgecolor = self.default_color
                 alpha = self.alpha
-                linewidth = 1
+                linewidth = self.config.viz_line_widths[0] if len(self.config.viz_line_widths) > 0 else 1
                 linestyle = "-"
 
             # Create rectangle patch with projected coordinates
@@ -189,7 +196,8 @@ class InteractivePlotter:
                 else "normal"
             )
             fontsize = (
-                12 if (self.pathfinding_path and name in self.pathfinding_path) else 10
+                self.config.viz_font_size_bold if (self.pathfinding_path and name in self.pathfinding_path) 
+                else self.config.viz_font_size
             )
 
             self.ax.text(
@@ -200,7 +208,7 @@ class InteractivePlotter:
                 va="center",
                 fontsize=fontsize,
                 weight=fontweight,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+                bbox=dict(boxstyle=self.config.viz_text_box_style, facecolor=self.config.viz_text_box_facecolor, alpha=self.config.viz_text_box_alpha),
             )
 
         # Auto-scale to show all regions

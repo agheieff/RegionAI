@@ -87,8 +87,8 @@ def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
                     return node  # Unknown operation
                 
                 return ast.Constant(value=result)
-            except:
-                return node  # Evaluation failed
+            except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+                return node  # Evaluation failed - return original node
     
     elif isinstance(node, ast.UnaryOp):
         if isinstance(node.operand, ast.Constant):
@@ -105,8 +105,8 @@ def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
                     return node
                 
                 return ast.Constant(value=result)
-            except:
-                return node
+            except (TypeError, ValueError, AttributeError):
+                return node  # Evaluation failed - return original node
     
     elif isinstance(node, ast.Compare):
         # Handle simple comparisons with constants
@@ -133,8 +133,8 @@ def evaluate_node(node: ast.AST, args: List[Any]) -> ast.AST:
                         return node
                     
                     return ast.Constant(value=result)
-                except:
-                    return node
+                except (TypeError, ValueError, AttributeError):
+                    return node  # Comparison evaluation failed
     
     # Return original node if we can't evaluate
     return node

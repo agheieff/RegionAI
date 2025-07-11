@@ -263,7 +263,8 @@ class ConditionalDiscovery(DiscoveryStrategy):
                         return False
                 else:
                     return False
-            except:
+            except (TypeError, ValueError, AttributeError, KeyError, IndexError, Exception) as e:
+                # Transformation execution failed - this is expected for invalid transformations
                 return False
         return True
     
@@ -407,7 +408,8 @@ class IterativeDiscovery(DiscoveryStrategy):
                         return False
                 else:
                     return False
-            except:
+            except (TypeError, ValueError, AttributeError, KeyError, IndexError, Exception) as e:
+                # Transformation execution failed - this is expected for invalid transformations
                 return False
         return True
     

@@ -5,7 +5,7 @@ This module defines all configurable parameters for the analysis engine,
 allowing for easy tuning and different analysis profiles without modifying code.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from enum import Enum
 
 
@@ -73,6 +73,23 @@ class RegionAIConfig:
     debug_cfg_output: bool = False
     trace_fixpoint_iterations: bool = False
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
+    
+    # Visualization settings
+    viz_figure_size: Tuple[int, int] = (10, 10)
+    viz_default_color: str = "blue"
+    viz_selected_color: str = "red"
+    viz_path_colors: List[str] = field(default_factory=lambda: ["orange", "purple", "lightblue", "darkblue", "lightgreen", "darkgreen"])
+    viz_path_edge_color: str = "black"
+    viz_default_alpha: float = 0.3
+    viz_selected_alpha: float = 0.6
+    viz_path_alpha: float = 0.7
+    viz_grid_alpha: float = 0.3
+    viz_line_widths: List[int] = field(default_factory=lambda: [1, 2, 3, 4])
+    viz_font_size: int = 10
+    viz_font_size_bold: int = 12
+    viz_text_box_style: str = "round,pad=0.3"
+    viz_text_box_facecolor: str = "white"
+    viz_text_box_alpha: float = 0.8
     
     # Custom parameters (for experimentation)
     custom_params: Dict[str, Any] = field(default_factory=dict)
