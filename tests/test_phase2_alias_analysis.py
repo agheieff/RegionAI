@@ -10,7 +10,7 @@ from src.regionai.analysis.alias_analysis import (
 )
 from src.regionai.analysis.fixpoint import FixpointAnalyzer, AnalysisState
 from src.regionai.analysis.cfg import build_cfg
-from src.regionai.discovery.abstract_domains import AbstractState
+from src.regionai.discovery.abstract_domains import AbstractState, Sign
 
 
 class TestBasicAliasOperations:
