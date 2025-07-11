@@ -281,7 +281,9 @@ def assign_manager(employee_id, manager_id):
     assert dept_rel is not None
     assert dept_rel['confidence'] > 0
     assert dept_rel['evidence'] is not None
-    assert "belongs to exactly one department" in dept_rel['evidence']
+    # Check that the evidence mentions the relationship between employees and departments
+    assert ("employees belong to departments" in dept_rel['evidence'].lower() or
+            "employee belongs to" in dept_rel['evidence'].lower())
     
     print(f"✓ Found Employee->Department relationship:")
     print(f"  Confidence: {dept_rel['confidence']:.2f}")

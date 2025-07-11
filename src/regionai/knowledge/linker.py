@@ -34,17 +34,20 @@ class RelationshipPattern:
         ],
         'HAS_MANY': [
             r'{source}\s+has\s+(?:multiple|many|several)\s+{target}s?',
-            r'{source}\s+contains\s+(?:multiple|many|several)\s+{target}s?',
+            r'{source}\s+contains?\s+(?:multiple|many|several)\s+{target}s?',
+            r'{source}\s+contain\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+can\s+have\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+manages\s+{target}s?',
             r'{source}\s+tracks\s+{target}s?',
         ],
         'BELONGS_TO': [
-            r'{source}\s+belongs\s+to\s+(?:a|an)?\s*{target}',
+            r'{source}s?\s+belong(?:s)?\s+to\s+(?:a|an|one)?\s*{target}s?',
+            r'{source}\s+belongs\s+to\s+(?:a|an|exactly\s+one)?\s*{target}',
             r'{source}\s+is\s+owned\s+by\s+(?:a|an)?\s*{target}',
             r'{source}\s+is\s+part\s+of\s+(?:a|an)?\s*{target}',
             r'{source}\s+is\s+associated\s+with\s+(?:a|an)?\s*{target}',
             r'{target}\s+owns\s+(?:the\s+)?{source}',
+            r'each\s+{source}\s+belongs\s+to\s+(?:a|an|exactly\s+one)?\s*{target}',
         ],
         'IS_A': [
             r'{source}\s+is\s+(?:a|an)\s+{target}',
@@ -116,8 +119,14 @@ class KnowledgeLinker:
             # Original
             variations[concept_str.lower()] = concept
             
-            # Plural/singular
-            if concept_str.endswith('s'):
+            # Plural/singular  
+            if concept_str.endswith('y'):
+                # Handle words ending in 'y' -> 'ies' (e.g., Category -> Categories)
+                plural = concept_str[:-1] + 'ies'
+                variations[plural.lower()] = concept
+                # Also add capitalized version
+                variations[plural] = concept
+            elif concept_str.endswith('s'):
                 variations[concept_str[:-1].lower()] = concept
             else:
                 variations[(concept_str + 's').lower()] = concept
@@ -198,9 +207,11 @@ class KnowledgeLinker:
     
     def _split_into_sentences(self, text: str) -> List[str]:
         """Split text into sentences for analysis."""
-        # Simple sentence splitting - could be enhanced with NLP
-        sentences = re.split(r'[.!?]+', text)
-        return [s.strip() for s in sentences if s.strip()]
+        # Simple sentence splitting - preserve sentence endings for evidence
+        # Split on sentence endings but keep them for better evidence tracking
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        # Normalize whitespace in each sentence
+        return [' '.join(s.strip().split()) for s in sentences if s.strip()]
     
     def _find_concepts_in_sentence(self, sentence: str) -> List[Tuple[Concept, int, int]]:
         """
@@ -340,8 +351,17 @@ class KnowledgeLinker:
         pattern_confidence = 0.8 if rel_type in ['HAS_ONE', 'HAS_MANY', 'BELONGS_TO'] else 0.7
         final_confidence = base_confidence * pattern_confidence
         
-        # Strip and normalize evidence
-        evidence_cleaned = evidence.strip()
+        # Strip and normalize evidence - ensure consistent whitespace
+        evidence_cleaned = ' '.join(evidence.strip().split())
+        
+        # Check if this relationship already exists to prevent duplicates in our tracking
+        relationship_exists = False
+        for existing_rel in self._discovered_relationships:
+            if (existing_rel['source'] == source and 
+                existing_rel['target'] == target and 
+                existing_rel['relation'] == rel_type):
+                relationship_exists = True
+                break
         
         # Create metadata
         metadata = RelationMetadata(
@@ -351,7 +371,7 @@ class KnowledgeLinker:
             evidence_patterns=[evidence_cleaned]
         )
         
-        # Add to graph
+        # Add to graph (the graph's add_relation method handles its own duplicate checking)
         self.kg.add_relation(
             source, target, 
             Relation(rel_type),
@@ -360,15 +380,16 @@ class KnowledgeLinker:
             evidence=evidence_cleaned
         )
         
-        # Track for reporting
-        self._discovered_relationships.append({
-            'source': source,
-            'target': target,
-            'relation': rel_type,
-            'confidence': final_confidence,
-            'evidence': evidence_cleaned,
-            'source_function': source_function
-        })
+        # Track for reporting only if not already tracked
+        if not relationship_exists:
+            self._discovered_relationships.append({
+                'source': source,
+                'target': target,
+                'relation': rel_type,
+                'confidence': final_confidence,
+                'evidence': evidence_cleaned,
+                'source_function': source_function
+            })
     
     def generate_enrichment_report(self) -> str:
         """

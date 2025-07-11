@@ -9,6 +9,8 @@ import re
 from typing import Dict, List, Set, Tuple, Optional
 from collections import defaultdict
 from dataclasses import dataclass
+import spacy
+from spacy.tokens import Doc
 
 from ..semantic.db import SemanticDB, SemanticEntry
 from ..semantic.fingerprint import Behavior
@@ -86,6 +88,14 @@ class ConceptDiscoverer:
         self.db = semantic_db
         self._discovered_patterns: List[CRUDPattern] = []
         self._noun_frequencies: Dict[str, int] = defaultdict(int)
+        
+        # Initialize spaCy for proper NLP-based noun extraction
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            # Fallback if model not available
+            print("Warning: spaCy model 'en_core_web_sm' not found. Using basic extraction.")
+            self.nlp = None
     
     def discover_concepts(self) -> KnowledgeGraph:
         """
@@ -205,7 +215,8 @@ class ConceptDiscoverer:
                        'start', 'stop', 'run', 'execute', 'call', 'invoke',
                        'find', 'search', 'list', 'count', 'exists', 'contains',
                        'creates', 'gets', 'sets', 'updates', 'deletes',
-                       'assign', 'assigns', 'assigned', 'manager', 'self'}
+                       'assign', 'assigns', 'assigned', 'manager', 'self',
+                       'belong', 'belongs', 'establishes', 'establish'}
         
         for noun, frequency in self._noun_frequencies.items():
             if frequency >= threshold:
@@ -251,10 +262,49 @@ class ConceptDiscoverer:
         return nouns
     
     def _extract_nouns_from_text(self, text: str) -> List[str]:
-        """Extract nouns from natural language text."""
-        # Simple approach: look for capitalized words and common patterns
-        # In a production system, we'd use NLP libraries like spaCy
+        """Extract nouns from natural language text using spaCy NLP."""
+        if self.nlp is None:
+            # Fallback to simple extraction if spaCy not available
+            return self._extract_nouns_simple(text)
         
+        # Use spaCy for proper POS tagging
+        doc = self.nlp(text)
+        nouns = []
+        
+        # Common words to skip (pronouns, determiners, etc.)
+        skip_words = {'this', 'that', 'these', 'those', 'each', 'every', 'all',
+                     'some', 'any', 'many', 'few', 'several', 'both', 'either',
+                     'neither', 'when', 'where', 'what', 'which', 'who', 'how',
+                     'items', 'item', 'data', 'info', 'information', 'record',
+                     'records', 'object', 'objects', 'entity', 'entities',
+                     'thing', 'things', 'something', 'one', 'ones'}
+        
+        # Extract nouns based on POS tags
+        for token in doc:
+            # Look for nouns: NN (noun, singular), NNS (noun, plural), 
+            # NNP (proper noun, singular), NNPS (proper noun, plural)
+            if token.pos_ == "NOUN" or token.pos_ == "PROPN":
+                # Skip common programming terms, generic words, and single letters
+                word_lower = token.text.lower()
+                if (not self._is_programming_term(word_lower) and 
+                    len(token.text) > 2 and 
+                    word_lower not in skip_words and
+                    not token.text.isupper()):  # Skip acronyms like "ID"
+                    nouns.append(word_lower)
+        
+        # Also extract noun chunks (multi-word nouns)
+        for chunk in doc.noun_chunks:
+            # Get the head noun of the chunk
+            head = chunk.root.text.lower()
+            if (not self._is_programming_term(head) and 
+                len(head) > 2 and 
+                head not in skip_words):
+                nouns.append(head)
+        
+        return list(set(nouns))  # Remove duplicates
+    
+    def _extract_nouns_simple(self, text: str) -> List[str]:
+        """Simple fallback noun extraction without spaCy."""
         # Skip common sentence starters and pronouns
         skip_words = {'this', 'that', 'these', 'those', 'each', 'every', 'all',
                      'some', 'any', 'many', 'few', 'several', 'both', 'either',
@@ -290,7 +340,9 @@ class ConceptDiscoverer:
             'dict', 'dictionary', 'string', 'integer', 'float', 'boolean',
             'true', 'false', 'none', 'null', 'error', 'exception',
             'new', 'old', 'one', 'two', 'three', 'first', 'last', 'next',
-            'single', 'multiple', 'few', 'many', 'all', 'some', 'any'
+            'single', 'multiple', 'few', 'many', 'all', 'some', 'any',
+            'record', 'records', 'item', 'items', 'entity', 'entities',
+            'field', 'fields', 'attribute', 'attributes', 'property', 'properties'
         }
         return word.lower() in programming_terms
     
