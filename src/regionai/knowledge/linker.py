@@ -36,6 +36,7 @@ class RelationshipPattern:
             r'{source}\s+has\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+contains?\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+contain\s+(?:multiple|many|several)\s+{target}s?',
+            r'{source}s?\s+contain\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+can\s+have\s+(?:multiple|many|several)\s+{target}s?',
             r'{source}\s+manages\s+{target}s?',
             r'{source}\s+tracks\s+{target}s?',
@@ -127,9 +128,14 @@ class KnowledgeLinker:
                 # Also add capitalized version
                 variations[plural] = concept
             elif concept_str.endswith('s'):
+                # Already plural, add singular
                 variations[concept_str[:-1].lower()] = concept
             else:
+                # Add plural
                 variations[(concept_str + 's').lower()] = concept
+                # Also handle common pluralizations
+                if concept_str.endswith('x') or concept_str.endswith('ch') or concept_str.endswith('sh'):
+                    variations[(concept_str + 'es').lower()] = concept
             
             # With articles
             variations[f"a {concept_str.lower()}"] = concept

@@ -376,21 +376,54 @@ class KnowledgeGraph:
         metadata1 = self.get_concept_metadata(concept1)
         metadata2 = self.get_concept_metadata(concept2)
         
-        merged_metadata = ConceptMetadata()
-        if metadata1 and metadata2:
-            # Combine source information
-            merged_metadata.source_functions = (
-                metadata1.source_functions + metadata2.source_functions
-            )
-            merged_metadata.source_files = metadata1.source_files | metadata2.source_files
-            merged_metadata.related_behaviors = (
-                metadata1.related_behaviors | metadata2.related_behaviors
-            )
-            # Combine beliefs by summing evidence
-            merged_metadata.alpha = metadata1.alpha + metadata2.alpha - 1  # Subtract 1 to avoid double-counting prior
-            merged_metadata.beta = metadata1.beta + metadata2.beta - 1
+        # If merged_name already exists, update its metadata
+        existing_metadata = self.get_concept_metadata(merged_name)
         
-        self.add_concept(merged_name, merged_metadata)
+        if existing_metadata and metadata1 and metadata2:
+            # Update existing concept's metadata
+            # Only add functions from concept2 if merging into concept1
+            if merged_name == concept1:
+                existing_metadata.source_functions.extend(metadata2.source_functions)
+                existing_metadata.source_files.update(metadata2.source_files)
+                existing_metadata.related_behaviors.update(metadata2.related_behaviors)
+                # Update beliefs by adding evidence from concept2
+                existing_metadata.alpha += metadata2.alpha - 1  # Subtract prior
+                existing_metadata.beta += metadata2.beta - 1
+            elif merged_name == concept2:
+                existing_metadata.source_functions.extend(metadata1.source_functions)
+                existing_metadata.source_files.update(metadata1.source_files)
+                existing_metadata.related_behaviors.update(metadata1.related_behaviors)
+                # Update beliefs by adding evidence from concept1
+                existing_metadata.alpha += metadata1.alpha - 1  # Subtract prior
+                existing_metadata.beta += metadata1.beta - 1
+            else:
+                # Merging into a different concept - add both
+                existing_metadata.source_functions.extend(metadata1.source_functions)
+                existing_metadata.source_functions.extend(metadata2.source_functions)
+                existing_metadata.source_files.update(metadata1.source_files)
+                existing_metadata.source_files.update(metadata2.source_files)
+                existing_metadata.related_behaviors.update(metadata1.related_behaviors)
+                existing_metadata.related_behaviors.update(metadata2.related_behaviors)
+                # Update beliefs by summing evidence
+                existing_metadata.alpha += metadata1.alpha + metadata2.alpha - 2  # Subtract priors
+                existing_metadata.beta += metadata1.beta + metadata2.beta - 2
+        else:
+            # Create new merged metadata
+            merged_metadata = ConceptMetadata()
+            if metadata1 and metadata2:
+                # Combine source information
+                merged_metadata.source_functions = (
+                    metadata1.source_functions + metadata2.source_functions
+                )
+                merged_metadata.source_files = metadata1.source_files | metadata2.source_files
+                merged_metadata.related_behaviors = (
+                    metadata1.related_behaviors | metadata2.related_behaviors
+                )
+                # Combine beliefs by summing evidence
+                merged_metadata.alpha = metadata1.alpha + metadata2.alpha - 1  # Subtract 1 to avoid double-counting prior
+                merged_metadata.beta = metadata1.beta + metadata2.beta - 1
+            
+            self.add_concept(merged_name, merged_metadata)
         
         # Transfer all relationships
         for source, target, relation in self.get_relations(concept1):
