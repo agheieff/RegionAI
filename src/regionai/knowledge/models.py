@@ -113,6 +113,7 @@ class Heuristic(ReasoningConcept):
     applicability_conditions: Tuple[str, ...] = field(default_factory=tuple)
     expected_utility: float = 0.5  # How useful this heuristic typically is
     utility_score: float = 0.5  # Tracks the actual effectiveness of this heuristic
+    implementation_id: str = ""  # ID linking to executable function in HeuristicRegistry
     
     def __post_init__(self):
         # Ensure reasoning_type is HEURISTIC for all Heuristic instances

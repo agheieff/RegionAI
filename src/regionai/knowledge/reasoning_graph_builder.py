@@ -30,7 +30,8 @@ def populate_initial_reasoning_graph(rkg: ReasoningKnowledgeGraph):
         name="Co-occurrence in function name implies RELATED_TO",
         reasoning_type=ReasoningType.HEURISTIC,
         description="If two concepts are present in a function's name, they are likely related.",
-        utility_score=0.75
+        utility_score=0.75,
+        implementation_id="pattern.co_occurrence_implies_related"
     )
     rkg.add_concept(co_occurrence_heuristic, ReasoningMetadata(
         discovery_source="built-in",
@@ -53,7 +54,8 @@ def populate_initial_reasoning_graph(rkg: ReasoningKnowledgeGraph):
         name="Method call implies PERFORMS",
         reasoning_type=ReasoningType.HEURISTIC,
         description="A method call on an object implies the object's class PERFORMS the action represented by the method.",
-        utility_score=0.85
+        utility_score=0.85,
+        implementation_id="ast.method_call_implies_performs"
     )
     rkg.add_concept(action_heuristic, ReasoningMetadata(
         discovery_source="built-in",
@@ -76,7 +78,8 @@ def populate_initial_reasoning_graph(rkg: ReasoningKnowledgeGraph):
         name="Sequential AST nodes imply PRECEDES",
         reasoning_type=ReasoningType.HEURISTIC,
         description="If one AST node directly follows another within the same block, a PRECEDES relationship can be inferred.",
-        utility_score=0.95
+        utility_score=0.95,
+        implementation_id="ast.sequential_nodes_imply_precedes"
     )
     rkg.add_concept(sequence_heuristic, ReasoningMetadata(
         discovery_source="built-in",
