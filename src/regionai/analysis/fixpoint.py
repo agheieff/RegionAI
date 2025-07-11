@@ -261,33 +261,18 @@ class FixpointAnalyzer:
         """
         Analyze a basic block with the given input state.
         
-        Creates a temporary context for this block's analysis to avoid
-        modifying the shared context.
+        Uses the main context for configuration and error reporting while
+        passing the current abstract state explicitly to analysis functions.
         """
         # Start with copy of input state
         current_state = input_state.copy()
         
-        # Create a temporary context for this block's analysis
-        from .context import AnalysisContext
-        block_context = AnalysisContext()
-        
-        # Copy configuration and other shared data from the main context
-        block_context.config = self.context.config
-        block_context.errors = self.context.errors  # Share error list
-        block_context.warnings = self.context.warnings  # Share warning list
-        
-        # Set the block's current state
-        block_context.abstract_state = current_state.abstract_state
-        
-        # Analyze each statement with the temporary context
+        # Analyze each statement, passing the abstract state explicitly
         for stmt in block.statements:
             if isinstance(stmt, ast.Assign):
-                # Use the context-aware analyze_assignment
-                analyze_assignment(stmt, block_context)
+                # Pass the main context and current abstract state
+                analyze_assignment(stmt, self.context, current_state.abstract_state)
                     
-        # Copy the modified state back to the result
-        current_state.abstract_state = block_context.abstract_state
-                
         return current_state
     
     def _apply_path_constraint(self, state: AnalysisState, constraint: PathConstraint) -> AnalysisState:

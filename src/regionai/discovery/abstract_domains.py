@@ -190,30 +190,44 @@ def prove_property(tree: ast.AST, initial_state: Dict[str, Sign], context=None) 
 
 
 # New context-aware analysis functions (preferred)
-def analyze_assignment(node: ast.Assign, context):
+def analyze_assignment(node: ast.Assign, context, abstract_state=None):
     """
     Analyze an assignment statement and update the abstract state.
     
     Args:
         node: Assignment AST node
-        context: AnalysisContext containing the abstract state
+        context: AnalysisContext for configuration and error reporting
+        abstract_state: Optional AbstractState to update (uses context.abstract_state if not provided)
     """
+    # Use provided abstract_state or fall back to context's
+    state = abstract_state if abstract_state is not None else context.abstract_state
+    
     if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
         var_name = node.targets[0].id
         
-        # Analyze sign
-        sign = analyze_sign(node.value, context)
+        # Create a temporary wrapper for analyze_sign if using external state
+        if abstract_state is not None:
+            class TempContext:
+                def __init__(self, state, ctx):
+                    self.abstract_state = state
+                    self.config = ctx.config
+            temp_ctx = TempContext(state, context)
+            sign = analyze_sign(node.value, temp_ctx)
+        else:
+            # Use original context
+            sign = analyze_sign(node.value, context)
+            
         if sign:
-            context.abstract_state.update_sign(var_name, sign)
+            state.update_sign(var_name, sign)
         
         # Analyze nullability
         if isinstance(node.value, ast.Constant) and node.value.value is None:
-            context.abstract_state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
+            state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
         elif isinstance(node.value, ast.Name) and node.value.id == "None":
-            context.abstract_state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
+            state.update_nullability(var_name, Nullability.DEFINITELY_NULL)
         else:
             # For now, assume non-null for other values
-            context.abstract_state.update_nullability(var_name, Nullability.NOT_NULL)
+            state.update_nullability(var_name, Nullability.NOT_NULL)
 
 
 # Re-export key items
