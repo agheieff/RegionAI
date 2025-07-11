@@ -28,7 +28,11 @@ class ConceptMetadata:
     # Discovery information
     discovered_at: datetime = field(default_factory=datetime.now)
     discovery_method: str = ""  # e.g., "CRUD_PATTERN", "NLP_EXTRACTION"
-    confidence: float = 1.0  # 0.0 to 1.0
+    
+    # NEW: Bayesian belief parameters for concept existence confidence
+    # Represents our belief that this concept truly exists in the domain
+    alpha: float = 1.0  # Evidence for the concept's existence
+    beta: float = 1.0   # Evidence against the concept's existence
     
     # Source information
     source_functions: List[str] = field(default_factory=list)
@@ -41,12 +45,24 @@ class ConceptMetadata:
     # Additional properties
     properties: Dict[str, Any] = field(default_factory=dict)
     
+    @property
+    def belief(self) -> float:
+        """
+        Calculates the expected belief score from the Beta distribution.
+        Returns a probability between 0 and 1.
+        """
+        if self.alpha + self.beta == 0:
+            return 0.5  # Avoid division by zero, return max uncertainty
+        return self.alpha / (self.alpha + self.beta)
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             'discovered_at': self.discovered_at.isoformat(),
             'discovery_method': self.discovery_method,
-            'confidence': self.confidence,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'belief': self.belief,  # Include calculated belief for convenience
             'source_functions': self.source_functions,
             'source_files': list(self.source_files),
             'related_behaviors': list(self.related_behaviors),
@@ -61,22 +77,39 @@ class RelationMetadata:
     Metadata for relationships between concepts.
     
     Captures not just that two concepts are related, but how we know
-    they're related based on code analysis.
+    they're related based on code analysis and textual evidence.
     """
     relation_type: str  # e.g., "HAS_ONE", "HAS_MANY", "BELONGS_TO"
     discovered_at: datetime = field(default_factory=datetime.now)
-    confidence: float = 1.0
+    
+    # NEW: Bayesian belief parameters (alpha/beta) instead of simple confidence
+    # Represents the belief in this relationship's truthfulness.
+    # Starts at (1, 1) which is a uniform (max uncertainty) distribution.
+    alpha: float = 1.0
+    beta: float = 1.0
     
     # Evidence for this relationship
     evidence_functions: List[str] = field(default_factory=list)
     evidence_patterns: List[str] = field(default_factory=list)
+    
+    @property
+    def belief(self) -> float:
+        """
+        Calculates the expected belief score from the Beta distribution.
+        Returns a probability between 0 and 1.
+        """
+        if self.alpha + self.beta == 0:
+            return 0.5  # Avoid division by zero, return max uncertainty
+        return self.alpha / (self.alpha + self.beta)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             'relation_type': self.relation_type,
             'discovered_at': self.discovered_at.isoformat(),
-            'confidence': self.confidence,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'belief': self.belief,  # Include the calculated belief for convenience
             'evidence_functions': self.evidence_functions,
             'evidence_patterns': self.evidence_patterns
         }
@@ -143,7 +176,17 @@ class KnowledgeGraph:
         
         # Update metadata with confidence and evidence if provided
         if confidence is not None:
-            metadata.confidence = confidence
+            # Convert confidence to alpha/beta parameters
+            # For beta=1, alpha = confidence/(1-confidence) gives belief=confidence
+            if confidence >= 0.99:  # Avoid division by zero
+                metadata.alpha = 99.0
+                metadata.beta = 1.0
+            elif confidence <= 0.01:
+                metadata.alpha = 1.0
+                metadata.beta = 99.0
+            else:
+                metadata.alpha = confidence / (1 - confidence)
+                metadata.beta = 1.0
         if evidence is not None:
             if evidence not in metadata.evidence_patterns:
                 metadata.evidence_patterns.append(evidence)
@@ -160,10 +203,18 @@ class KnowledgeGraph:
             # Check if we already have this exact relation type
             for key, edge_data in existing_edges.items():
                 if edge_data['label'] == relation:
-                    # Update existing relationship if new evidence or higher confidence
-                    if confidence and confidence > edge_data.get('confidence', 0):
-                        edge_data['confidence'] = confidence
-                        edge_data['metadata'].confidence = confidence
+                    # Update existing relationship if new evidence or higher belief
+                    current_belief = edge_data['metadata'].belief
+                    if confidence and confidence > current_belief:
+                        # Update alpha/beta with new evidence
+                        # Add pseudo-counts based on confidence
+                        if confidence > 0.5:
+                            edge_data['metadata'].alpha += confidence
+                            edge_data['metadata'].beta += 1 - confidence
+                        else:
+                            edge_data['metadata'].alpha += confidence
+                            edge_data['metadata'].beta += 1 - confidence
+                        edge_data['confidence'] = edge_data['metadata'].belief
                     if evidence and evidence not in edge_data['metadata'].evidence_patterns:
                         edge_data['metadata'].evidence_patterns.append(evidence)
                         edge_data['evidence'] = evidence
@@ -172,7 +223,7 @@ class KnowledgeGraph:
         self.graph.add_edge(source, target, 
                            label=relation,
                            metadata=metadata,
-                           confidence=metadata.confidence,
+                           confidence=metadata.belief,
                            evidence=evidence or "code_pattern")
         self._stats['relations_added'] += 1
         self._stats['last_modified'] = datetime.now()
@@ -230,7 +281,7 @@ class KnowledgeGraph:
                     'source': concept,
                     'target': Concept(target),
                     'relation': Relation(data['label']),
-                    'confidence': data.get('confidence', 1.0),
+                    'confidence': data['metadata'].belief if 'metadata' in data and data['metadata'] else 0.5,
                     'evidence': data.get('evidence', 'code_pattern'),
                     'metadata': data.get('metadata')
                 })
@@ -242,7 +293,7 @@ class KnowledgeGraph:
                     'source': Concept(source),
                     'target': concept,
                     'relation': Relation(data['label']),
-                    'confidence': data.get('confidence', 1.0),
+                    'confidence': data['metadata'].belief if 'metadata' in data and data['metadata'] else 0.5,
                     'evidence': data.get('evidence', 'code_pattern'),
                     'metadata': data.get('metadata')
                 })
@@ -318,7 +369,9 @@ class KnowledgeGraph:
             merged_metadata.related_behaviors = (
                 metadata1.related_behaviors | metadata2.related_behaviors
             )
-            merged_metadata.confidence = max(metadata1.confidence, metadata2.confidence)
+            # Combine beliefs by summing evidence
+            merged_metadata.alpha = metadata1.alpha + metadata2.alpha - 1  # Subtract 1 to avoid double-counting prior
+            merged_metadata.beta = metadata1.beta + metadata2.beta - 1
         
         self.add_concept(merged_name, merged_metadata)
         
@@ -398,7 +451,22 @@ class KnowledgeGraph:
             # Populate metadata from dict
             if metadata_dict:
                 metadata.discovery_method = metadata_dict.get('discovery_method', '')
-                metadata.confidence = metadata_dict.get('confidence', 1.0)
+                # Handle both old confidence format and new alpha/beta format
+                if 'alpha' in metadata_dict and 'beta' in metadata_dict:
+                    metadata.alpha = metadata_dict['alpha']
+                    metadata.beta = metadata_dict['beta']
+                elif 'confidence' in metadata_dict:
+                    # Legacy support: convert confidence to alpha/beta
+                    conf = metadata_dict['confidence']
+                    if conf >= 0.99:
+                        metadata.alpha = 99.0
+                        metadata.beta = 1.0
+                    elif conf <= 0.01:
+                        metadata.alpha = 1.0
+                        metadata.beta = 99.0
+                    else:
+                        metadata.alpha = conf / (1 - conf)
+                        metadata.beta = 1.0
                 metadata.source_functions = metadata_dict.get('source_functions', [])
                 metadata.source_files = set(metadata_dict.get('source_files', []))
                 metadata.related_behaviors = set(metadata_dict.get('related_behaviors', []))
@@ -413,9 +481,24 @@ class KnowledgeGraph:
             if 'metadata' in relation_dict:
                 meta_dict = relation_dict['metadata']
                 metadata = RelationMetadata(
-                    relation_type=meta_dict.get('relation_type', ''),
-                    confidence=meta_dict.get('confidence', 1.0)
+                    relation_type=meta_dict.get('relation_type', '')
                 )
+                # Handle both old confidence format and new alpha/beta format
+                if 'alpha' in meta_dict and 'beta' in meta_dict:
+                    metadata.alpha = meta_dict['alpha']
+                    metadata.beta = meta_dict['beta']
+                elif 'confidence' in meta_dict:
+                    # Legacy support: convert confidence to alpha/beta
+                    conf = meta_dict['confidence']
+                    if conf >= 0.99:
+                        metadata.alpha = 99.0
+                        metadata.beta = 1.0
+                    elif conf <= 0.01:
+                        metadata.alpha = 1.0
+                        metadata.beta = 99.0
+                    else:
+                        metadata.alpha = conf / (1 - conf)
+                        metadata.beta = 1.0
                 metadata.evidence_functions = meta_dict.get('evidence_functions', [])
                 metadata.evidence_patterns = meta_dict.get('evidence_patterns', [])
             
@@ -450,7 +533,7 @@ class KnowledgeGraph:
             metadata = self.get_concept_metadata(concept)
             if metadata:
                 lines.append(f"  Discovery: {metadata.discovery_method}")
-                lines.append(f"  Confidence: {metadata.confidence:.2f}")
+                lines.append(f"  Belief: {metadata.belief:.2f} (α={metadata.alpha:.1f}, β={metadata.beta:.1f})")
                 if metadata.source_functions:
                     lines.append(f"  Sources: {', '.join(metadata.source_functions[:3])}...")
             

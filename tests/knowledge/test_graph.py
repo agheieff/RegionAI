@@ -7,6 +7,7 @@ Tests the core functionality of concept and relationship management.
 import sys
 import os
 import json
+import pytest
 from datetime import datetime
 
 # Add the src directory to the Python path
@@ -43,7 +44,8 @@ def test_add_concept():
     # Add concept with metadata
     metadata = ConceptMetadata(
         discovery_method="CRUD_PATTERN",
-        confidence=0.9,
+        alpha=9.0,  # Equivalent to confidence=0.9 (9/(9+1)=0.9)
+        beta=1.0,
         source_functions=["create_user", "get_user", "update_user"]
     )
     kg.add_concept(Concept("Product"), metadata)
@@ -55,7 +57,7 @@ def test_add_concept():
     product_meta = kg.get_concept_metadata(Concept("Product"))
     assert product_meta is not None
     assert product_meta.discovery_method == "CRUD_PATTERN"
-    assert product_meta.confidence == 0.9
+    assert product_meta.belief == pytest.approx(0.9, abs=0.05)  # Check belief is approximately 0.9
     assert len(product_meta.source_functions) == 3
     
     print("✓ Concept addition works correctly")
@@ -84,7 +86,8 @@ def test_add_relation():
     # Add relation with metadata
     rel_metadata = RelationMetadata(
         relation_type="BELONGS_TO",
-        confidence=0.85,
+        alpha=5.67,  # Equivalent to confidence=0.85 (0.85/0.15≈5.67)
+        beta=1.0,
         evidence_functions=["get_order_user", "find_user_by_order"]
     )
     kg.add_relation(Concept("Order"), Concept("User"), 
@@ -151,12 +154,14 @@ def test_merge_concepts():
     # Create two similar concepts with different metadata
     meta1 = ConceptMetadata(
         discovery_method="CRUD_PATTERN",
-        confidence=0.8,
+        alpha=4.0,  # Equivalent to confidence=0.8 (0.8/0.2=4)
+        beta=1.0,
         source_functions=["create_user", "get_user"]
     )
     meta2 = ConceptMetadata(
         discovery_method="NOUN_EXTRACTION",
-        confidence=0.6,
+        alpha=1.5,  # Equivalent to confidence=0.6 (0.6/0.4=1.5)
+        beta=1.0,
         source_functions=["update_account", "delete_account"]
     )
     
@@ -177,7 +182,7 @@ def test_merge_concepts():
     # Check merged metadata
     merged_meta = kg.get_concept_metadata(Concept("User"))
     assert len(merged_meta.source_functions) == 4
-    assert merged_meta.confidence == 0.8  # Takes max
+    assert merged_meta.belief == pytest.approx(0.82, abs=0.02)  # Combined belief (4.5/5.5≈0.82)
     
     # Check relations were transferred
     user_relations = kg.get_relations(Concept("User"))
@@ -196,7 +201,8 @@ def test_json_serialization():
     # Build a graph
     meta = ConceptMetadata(
         discovery_method="CRUD_PATTERN",
-        confidence=0.9,
+        alpha=9.0,  # Equivalent to confidence=0.9 (9/(9+1)=0.9)
+        beta=1.0,
         source_functions=["create_product", "get_product"],
         related_behaviors={"PURE", "VALIDATOR"}
     )
@@ -224,7 +230,7 @@ def test_json_serialization():
     # Check metadata was preserved
     imported_meta = kg2.get_concept_metadata(Concept("Product"))
     assert imported_meta.discovery_method == "CRUD_PATTERN"
-    assert imported_meta.confidence == 0.9
+    assert imported_meta.belief == pytest.approx(0.9, abs=0.01)
     
     print("✓ JSON serialization works correctly")
 
@@ -237,7 +243,8 @@ def test_visualization():
     # Build a simple graph
     meta = ConceptMetadata(
         discovery_method="CRUD_PATTERN",
-        confidence=0.95,
+        alpha=19.0,  # Equivalent to confidence=0.95 (0.95/0.05=19)
+        beta=1.0,
         source_functions=["create_user", "get_user", "update_user"]
     )
     kg.add_concept(Concept("User"), meta)
@@ -251,7 +258,7 @@ def test_visualization():
     assert "Relations: 1" in viz
     assert "User" in viz
     assert "CRUD_PATTERN" in viz
-    assert "0.95" in viz
+    assert "0.95" in viz or "Belief: 0.95" in viz
     assert "-> HAS_MANY -> Order" in viz
     
     print("✓ Visualization works correctly")

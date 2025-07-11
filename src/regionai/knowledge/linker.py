@@ -363,10 +363,22 @@ class KnowledgeLinker:
                 relationship_exists = True
                 break
         
-        # Create metadata
+        # Create metadata with Bayesian belief parameters
+        # Convert confidence to alpha/beta: for beta=1, alpha = confidence/(1-confidence)
+        if final_confidence >= 0.99:
+            alpha = 99.0
+            beta = 1.0
+        elif final_confidence <= 0.01:
+            alpha = 1.0
+            beta = 99.0
+        else:
+            alpha = final_confidence / (1 - final_confidence)
+            beta = 1.0
+            
         metadata = RelationMetadata(
             relation_type=rel_type,
-            confidence=final_confidence,
+            alpha=alpha,
+            beta=beta,
             evidence_functions=[source_function],
             evidence_patterns=[evidence_cleaned]
         )

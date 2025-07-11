@@ -204,7 +204,7 @@ def test_full_discovery_pipeline():
     assert Concept("User") in kg
     user_meta = kg.get_concept_metadata(Concept("User"))
     assert user_meta is not None
-    assert user_meta.confidence > 0.5
+    assert user_meta.belief > 0.5
     assert len(user_meta.source_functions) > 0
     
     # Verify Product concept

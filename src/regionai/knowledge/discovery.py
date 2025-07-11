@@ -425,9 +425,22 @@ class ConceptDiscoverer:
     def _add_crud_concepts(self, kg: KnowledgeGraph, patterns: List[CRUDPattern]):
         """Add concepts discovered through CRUD patterns to the graph."""
         for pattern in patterns:
+            # Convert completeness score to alpha/beta
+            score = pattern.completeness_score
+            if score >= 0.99:
+                alpha = 99.0
+                beta = 1.0
+            elif score <= 0.01:
+                alpha = 1.0
+                beta = 99.0
+            else:
+                alpha = score / (1 - score)
+                beta = 1.0
+                
             metadata = ConceptMetadata(
                 discovery_method="CRUD_PATTERN",
-                confidence=pattern.completeness_score,
+                alpha=alpha,
+                beta=beta,
                 source_functions=pattern.all_functions,
                 properties={
                     'has_create': bool(pattern.create_functions),
@@ -444,9 +457,22 @@ class ConceptDiscoverer:
         for concept in concepts:
             # Don't add if already added by CRUD discovery
             if Concept(concept) not in kg:
+                # Convert frequency-based confidence to alpha/beta
+                freq_confidence = min(self._noun_frequencies[concept.lower()] / 10.0, 1.0)
+                if freq_confidence >= 0.99:
+                    alpha = 99.0
+                    beta = 1.0
+                elif freq_confidence <= 0.01:
+                    alpha = 1.0
+                    beta = 99.0
+                else:
+                    alpha = freq_confidence / (1 - freq_confidence)
+                    beta = 1.0
+                    
                 metadata = ConceptMetadata(
                     discovery_method="NOUN_EXTRACTION",
-                    confidence=min(self._noun_frequencies[concept.lower()] / 10.0, 1.0),
+                    alpha=alpha,
+                    beta=beta,
                     properties={
                         'frequency': self._noun_frequencies[concept.lower()]
                     }
@@ -462,7 +488,8 @@ class ConceptDiscoverer:
                 if Concept(concept) not in kg:
                     metadata = ConceptMetadata(
                         discovery_method=f"BEHAVIOR_ANALYSIS_{behavior_type.upper()}",
-                        confidence=0.7,
+                        alpha=2.33,  # Equivalent to confidence=0.7 (0.7/0.3≈2.33)
+                        beta=1.0,
                         related_behaviors={behavior_type}
                     )
                     
@@ -474,7 +501,8 @@ class ConceptDiscoverer:
         for source, target, rel_type in relationships:
             metadata = RelationMetadata(
                 relation_type=rel_type.upper(),
-                confidence=0.8,
+                alpha=4.0,  # Equivalent to confidence=0.8 (0.8/0.2=4)
+                beta=1.0,
                 evidence_patterns=[f"{source.lower()}_{rel_type}_{target.lower()}"]
             )
             
