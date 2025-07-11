@@ -4,7 +4,8 @@ single analysis run. This is crucial for eliminating global state and
 ensuring that analysis is re-entrant and thread-safe.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, Union, TYPE_CHECKING
+import ast
 
 # Import the centralized configuration
 from ..config import RegionAIConfig, DEFAULT_CONFIG
@@ -38,6 +39,10 @@ class AnalysisContext:
     # You can add more state here as needed, e.g., error logs, warnings, etc.
     errors: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
+    
+    # Variable state map for constant propagation analysis
+    # Maps variable names to their constant values (as AST nodes) or "UNKNOWN"
+    variable_state_map: Dict[str, Union[ast.AST, str]] = field(default_factory=dict)
 
     def reset(self):
         """Resets the context for a new analysis."""
@@ -45,6 +50,7 @@ class AnalysisContext:
         self.summaries = {}
         self.errors = []
         self.warnings = []
+        self.variable_state_map = {}
     
     def add_error(self, error: str):
         """Add an error message to the context."""

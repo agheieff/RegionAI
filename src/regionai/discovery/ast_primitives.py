@@ -7,27 +7,6 @@ from typing import Any, List, Optional, Union, Dict
 from .transformation import Transformation
 
 
-class ConstantPropagationContext:
-    """
-    Context for constant propagation analysis.
-    
-    This class replaces the global state that was previously used for
-    tracking variable values during constant propagation. Each analysis
-    should create its own context instance.
-    
-    Example:
-        context = ConstantPropagationContext()
-        result = propagate_constants(ast_tree, [context])
-    """
-    
-    def __init__(self):
-        self.variable_state_map: Dict[str, Union[ast.AST, str]] = {}
-    
-    def reset(self):
-        """Reset the variable state map."""
-        self.variable_state_map.clear()
-
-
 # --- AST Inspection Primitives ---
 
 def get_node_type(node: ast.AST, args: List[Any]) -> str:
@@ -335,7 +314,7 @@ def get_variable_state(node: ast.AST, args: List[Any]) -> Union[ast.AST, str]:
     
     Args:
         node: AST node (should be a Name node)
-        args: [context] where context has a variable_state_map attribute
+        args: [context] where context is an AnalysisContext with variable_state_map
     """
     if len(args) > 0 and hasattr(args[0], 'variable_state_map'):
         context = args[0]
@@ -353,7 +332,7 @@ def update_variable_state(node: ast.AST, args: List[Any]) -> ast.AST:
     
     Args:
         node: AST node (should be an Assign node)
-        args: [context] where context has a variable_state_map attribute
+        args: [context] where context is an AnalysisContext with variable_state_map
     """
     if len(args) > 0 and hasattr(args[0], 'variable_state_map'):
         context = args[0]
@@ -379,7 +358,7 @@ def propagate_constants(root: ast.AST, args: List[Any]) -> ast.AST:
     
     Args:
         root: AST root node
-        args: [context] where context has a variable_state_map attribute
+        args: [context] where context is an AnalysisContext with variable_state_map
     """
     if len(args) == 0 or not hasattr(args[0], 'variable_state_map'):
         # No context provided, return unchanged
@@ -695,5 +674,5 @@ AST_PRIMITIVES = [
         num_args=1  # node type
     ),
 ]
-# Export the context class
-__all__ = ['AST_PRIMITIVES', 'ConstantPropagationContext']
+# Export AST primitives
+__all__ = ['AST_PRIMITIVES']
