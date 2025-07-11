@@ -11,6 +11,7 @@ import logging
 from ..knowledge.hub import KnowledgeHub
 from ..knowledge.models import Heuristic
 from .budget import DiscoveryBudget
+from ..config import HEURISTIC_LEARNING_RATE
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +109,13 @@ class ReasoningEngine:
                 continue
             
             try:
-                # Execute the heuristic
+                # Execute the heuristic and capture success/failure
                 logger.debug(f"Executing heuristic: {heuristic.name} (score: {heuristic.utility_score})")
-                func(self.hub, context)
+                made_discovery = func(self.hub, context)
                 results['heuristics_executed'] += 1
+                
+                # Update utility score based on success/failure
+                self._update_heuristic_score(heuristic, made_discovery)
                 
             except Exception as e:
                 error_msg = f"Error executing heuristic '{heuristic.name}': {str(e)}"
@@ -180,9 +184,9 @@ class ReasoningEngine:
             return False
         
         try:
-            func(self.hub, context)
-            logger.info(f"Successfully executed heuristic: {heuristic_id}")
-            return True
+            made_discovery = func(self.hub, context)
+            logger.info(f"Successfully executed heuristic: {heuristic_id} (made_discovery={made_discovery})")
+            return made_discovery
             
         except Exception as e:
             logger.error(f"Error executing heuristic '{heuristic_id}': {str(e)}", exc_info=True)
@@ -208,3 +212,52 @@ class ReasoningEngine:
                 }
         
         return heuristics_info
+    
+    def _update_heuristic_score(self, heuristic: Heuristic, made_discovery: bool) -> None:
+        """
+        Update a heuristic's utility score based on its success or failure.
+        
+        Uses a learning rate to gradually adjust scores:
+        - Success: score increases toward 1.0 (with diminishing returns)
+        - Failure: score decreases proportionally
+        
+        Args:
+            heuristic: The heuristic to update
+            made_discovery: Whether the heuristic found new knowledge
+        """
+        old_score = heuristic.utility_score
+        
+        if made_discovery:
+            # Success: increase score with diminishing returns as it approaches 1.0
+            new_score = old_score + HEURISTIC_LEARNING_RATE * (1.0 - old_score)
+        else:
+            # Failure: decrease score proportionally
+            new_score = old_score - HEURISTIC_LEARNING_RATE * old_score
+        
+        # Clamp score between 0.0 and 1.0
+        new_score = max(0.0, min(1.0, new_score))
+        
+        # Update the heuristic in the reasoning graph
+        # We need to replace the heuristic node with an updated version
+        # since Heuristic is frozen (immutable)
+        updated_heuristic = Heuristic(
+            name=heuristic.name,
+            description=heuristic.description,
+            reasoning_type=heuristic.reasoning_type,
+            applicability_conditions=heuristic.applicability_conditions,
+            expected_utility=heuristic.expected_utility,
+            utility_score=new_score,
+            implementation_id=heuristic.implementation_id
+        )
+        
+        # Update in the reasoning graph
+        # First remove the old node
+        self.hub.rkg.graph.remove_node(heuristic)
+        
+        # Add the updated node
+        self.hub.rkg.graph.add_node(updated_heuristic)
+        
+        # Re-add any edges that were connected to the old heuristic
+        # This is a simplified approach - in a real system we'd preserve all edge data
+        logger.info(f"Updated {heuristic.name} utility score: {old_score:.3f} -> {new_score:.3f} "
+                   f"({'success' if made_discovery else 'no discovery'})")

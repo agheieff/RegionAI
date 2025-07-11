@@ -222,6 +222,7 @@ class RegionAIConfig:
     discovery_exploration_rate: float = 0.1  # For exploration vs exploitation
     discovery_batch_size: int = 32
     max_discovery_iterations: int = 1000
+    heuristic_learning_rate: float = 0.01  # Learning rate for heuristic-based updates
     
     # Semantic analysis
     track_semantic_patterns: bool = True
@@ -328,6 +329,9 @@ class RegionAIConfig:
 
 # Default configuration instance
 DEFAULT_CONFIG = RegionAIConfig()
+
+# Standalone constants for direct access
+HEURISTIC_LEARNING_RATE = DEFAULT_CONFIG.heuristic_learning_rate
 
 # Convenience functions for common profiles
 def fast_analysis_config() -> RegionAIConfig:

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @heuristic_registry.register("ast.method_call_implies_performs")
-def method_call_implies_performs(hub: KnowledgeHub, context: Dict[str, Any]) -> None:
+def method_call_implies_performs(hub: KnowledgeHub, context: Dict[str, Any]) -> bool:
     """
     Heuristic: Method call implies PERFORMS relationship.
     
@@ -39,11 +39,13 @@ def method_call_implies_performs(hub: KnowledgeHub, context: Dict[str, Any]) -> 
     
     if not code:
         logger.warning("No code provided for method_call_implies_performs heuristic")
-        return
+        return False
     
     # Use ActionDiscoverer to find method calls
     discoverer = ActionDiscoverer()
     actions = discoverer.discover_actions(code, function_name)
+    
+    made_discovery = False
     
     # Process each discovered action
     for action in actions:
@@ -55,6 +57,7 @@ def method_call_implies_performs(hub: KnowledgeHub, context: Dict[str, Any]) -> 
                 source_functions=[function_name]
             )
             hub.wkg.add_concept(concept, metadata)
+            made_discovery = True
         
         # Create action concept if it doesn't exist
         action_concept = Concept(action.verb.title())
@@ -65,22 +68,33 @@ def method_call_implies_performs(hub: KnowledgeHub, context: Dict[str, Any]) -> 
                 source_functions=[function_name]
             )
             hub.wkg.add_concept(action_concept, metadata)
+            made_discovery = True
         
-        # Add PERFORMS relationship
-        performs_confidence = action.confidence * base_confidence * 0.85  # 0.85 is the heuristic's utility score
-        hub.wkg.add_relation(
-            concept,
-            action_concept,
-            Relation('PERFORMS'),
-            confidence=performs_confidence,
-            evidence=f"Method call: {action.method_name} in {function_name}"
+        # Check if PERFORMS relationship already exists
+        existing_relations = hub.wkg.get_relations_with_confidence(concept)
+        has_performs = any(
+            r['target'] == action_concept and str(r['relation']) == 'PERFORMS'
+            for r in existing_relations
         )
         
-        logger.debug(f"Discovered: {concept} PERFORMS {action_concept} (confidence: {performs_confidence:.2f})")
+        if not has_performs:
+            # Add PERFORMS relationship
+            performs_confidence = action.confidence * base_confidence * 0.85  # 0.85 is the heuristic's utility score
+            hub.wkg.add_relation(
+                concept,
+                action_concept,
+                Relation('PERFORMS'),
+                confidence=performs_confidence,
+                evidence=f"Method call: {action.method_name} in {function_name}"
+            )
+            made_discovery = True
+            logger.debug(f"Discovered: {concept} PERFORMS {action_concept} (confidence: {performs_confidence:.2f})")
+    
+    return made_discovery
 
 
 @heuristic_registry.register("ast.sequential_nodes_imply_precedes")
-def sequential_nodes_imply_precedes(hub: KnowledgeHub, context: Dict[str, Any]) -> None:
+def sequential_nodes_imply_precedes(hub: KnowledgeHub, context: Dict[str, Any]) -> bool:
     """
     Heuristic: Sequential AST nodes imply PRECEDES relationship.
     
@@ -100,11 +114,13 @@ def sequential_nodes_imply_precedes(hub: KnowledgeHub, context: Dict[str, Any]) 
     
     if not code:
         logger.warning("No code provided for sequential_nodes_imply_precedes heuristic")
-        return
+        return False
     
     # Use ActionDiscoverer to find action sequences
     discoverer = ActionDiscoverer()
     sequences = discoverer.discover_action_sequences(code, function_name)
+    
+    made_discovery = False
     
     # Process each sequence
     for action1, action2 in sequences:
@@ -120,22 +136,33 @@ def sequential_nodes_imply_precedes(hub: KnowledgeHub, context: Dict[str, Any]) 
                     source_functions=[function_name]
                 )
                 hub.wkg.add_concept(action_concept, metadata)
+                made_discovery = True
         
-        # Add PRECEDES relationship
-        sequence_confidence = min(action1.confidence, action2.confidence) * base_confidence * 0.95  # 0.95 is the heuristic's utility score
-        hub.wkg.add_relation(
-            action1_concept,
-            action2_concept,
-            Relation('PRECEDES'),
-            confidence=sequence_confidence,
-            evidence=f"Sequential execution: {action1.verb} -> {action2.verb} in {function_name}"
+        # Check if PRECEDES relationship already exists
+        existing_relations = hub.wkg.get_relations_with_confidence(action1_concept)
+        has_precedes = any(
+            r['target'] == action2_concept and str(r['relation']) == 'PRECEDES'
+            for r in existing_relations
         )
         
-        logger.debug(f"Discovered: {action1_concept} PRECEDES {action2_concept} (confidence: {sequence_confidence:.2f})")
+        if not has_precedes:
+            # Add PRECEDES relationship
+            sequence_confidence = min(action1.confidence, action2.confidence) * base_confidence * 0.95  # 0.95 is the heuristic's utility score
+            hub.wkg.add_relation(
+                action1_concept,
+                action2_concept,
+                Relation('PRECEDES'),
+                confidence=sequence_confidence,
+                evidence=f"Sequential execution: {action1.verb} -> {action2.verb} in {function_name}"
+            )
+            made_discovery = True
+            logger.debug(f"Discovered: {action1_concept} PRECEDES {action2_concept} (confidence: {sequence_confidence:.2f})")
+    
+    return made_discovery
 
 
 @heuristic_registry.register("pattern.co_occurrence_implies_related")
-def co_occurrence_implies_related(hub: KnowledgeHub, context: Dict[str, Any]) -> None:
+def co_occurrence_implies_related(hub: KnowledgeHub, context: Dict[str, Any]) -> bool:
     """
     Heuristic: Co-occurrence in function names implies RELATED_TO relationship.
     
@@ -153,7 +180,7 @@ def co_occurrence_implies_related(hub: KnowledgeHub, context: Dict[str, Any]) ->
     
     if not function_name:
         logger.warning("No function name provided for co_occurrence_implies_related heuristic")
-        return
+        return False
     
     # Extract potential concept names from the function name
     # Split by underscores and filter out common verbs
@@ -169,6 +196,8 @@ def co_occurrence_implies_related(hub: KnowledgeHub, context: Dict[str, Any]) ->
         if part not in common_verbs and len(part) > 2:
             potential_concepts.append(part.title())
     
+    made_discovery = False
+    
     # Create relationships between co-occurring concepts
     for i in range(len(potential_concepts)):
         for j in range(i + 1, len(potential_concepts)):
@@ -183,24 +212,35 @@ def co_occurrence_implies_related(hub: KnowledgeHub, context: Dict[str, Any]) ->
                         source_functions=[function_name]
                     )
                     hub.wkg.add_concept(concept, metadata)
+                    made_discovery = True
             
-            # Add RELATED_TO relationship (bidirectional)
-            co_occurrence_confidence = base_confidence * 0.75  # 0.75 is the heuristic's utility score
-            hub.wkg.add_relation(
-                concept1,
-                concept2,
-                Relation('RELATED_TO'),
-                confidence=co_occurrence_confidence,
-                evidence=f"Co-occurrence in function name: {function_name}"
+            # Check if RELATED_TO relationship already exists
+            existing_relations = hub.wkg.get_relations_with_confidence(concept1)
+            has_related = any(
+                r['target'] == concept2 and str(r['relation']) == 'RELATED_TO'
+                for r in existing_relations
             )
             
-            # Add reverse relationship
-            hub.wkg.add_relation(
-                concept2,
-                concept1,
-                Relation('RELATED_TO'),
-                confidence=co_occurrence_confidence,
-                evidence=f"Co-occurrence in function name: {function_name}"
-            )
-            
-            logger.debug(f"Discovered: {concept1} RELATED_TO {concept2} (confidence: {co_occurrence_confidence:.2f})")
+            if not has_related:
+                # Add RELATED_TO relationship (bidirectional)
+                co_occurrence_confidence = base_confidence * 0.75  # 0.75 is the heuristic's utility score
+                hub.wkg.add_relation(
+                    concept1,
+                    concept2,
+                    Relation('RELATED_TO'),
+                    confidence=co_occurrence_confidence,
+                    evidence=f"Co-occurrence in function name: {function_name}"
+                )
+                
+                # Add reverse relationship
+                hub.wkg.add_relation(
+                    concept2,
+                    concept1,
+                    Relation('RELATED_TO'),
+                    confidence=co_occurrence_confidence,
+                    evidence=f"Co-occurrence in function name: {function_name}"
+                )
+                made_discovery = True
+                logger.debug(f"Discovered: {concept1} RELATED_TO {concept2} (confidence: {co_occurrence_confidence:.2f})")
+    
+    return made_discovery
