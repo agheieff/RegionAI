@@ -7,6 +7,27 @@ from typing import Any, List, Optional, Union, Dict
 from .transformation import Transformation
 
 
+class ConstantPropagationContext:
+    """
+    Context for constant propagation analysis.
+    
+    This class replaces the global state that was previously used for
+    tracking variable values during constant propagation. Each analysis
+    should create its own context instance.
+    
+    Example:
+        context = ConstantPropagationContext()
+        result = propagate_constants(ast_tree, [context])
+    """
+    
+    def __init__(self):
+        self.variable_state_map: Dict[str, Union[ast.AST, str]] = {}
+    
+    def reset(self):
+        """Reset the variable state map."""
+        self.variable_state_map.clear()
+
+
 # --- AST Inspection Primitives ---
 
 def get_node_type(node: ast.AST, args: List[Any]) -> str:
@@ -307,32 +328,21 @@ def delete_node(root: ast.AST, args: List[Any]) -> ast.AST:
 
 # --- Data Flow Analysis Primitives ---
 
-# NOTE: The following global state functions were part of constant propagation
-# but are not currently used in the codebase. They're preserved here as comments
-# for historical reference, but should be refactored to use context objects
-# if constant propagation is re-implemented.
-
-# Global state map for tracking variable values during analysis
-# This would normally be part of a class, but simplified for discovery
-# _variable_state_map = {}
-
-
-# def reset_state_map(root: ast.AST, args: List[Any]) -> None:
-#     """Resets the variable state map for a fresh analysis."""
-#     global _variable_state_map
-#     _variable_state_map = {}
-#     return root
-
-
 def get_variable_state(node: ast.AST, args: List[Any]) -> Union[ast.AST, str]:
     """
-    Gets the current state of a variable.
+    Gets the current state of a variable from context.
     Returns a Constant node if the value is known, or "UNKNOWN" otherwise.
+    
+    Args:
+        node: AST node (should be a Name node)
+        args: [context] where context has a variable_state_map attribute
     """
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-        var_name = node.id
-        if var_name in _variable_state_map:
-            return _variable_state_map[var_name]
+    if len(args) > 0 and hasattr(args[0], 'variable_state_map'):
+        context = args[0]
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            var_name = node.id
+            if var_name in context.variable_state_map:
+                return context.variable_state_map[var_name]
     return "UNKNOWN"
 
 
@@ -340,18 +350,24 @@ def update_variable_state(node: ast.AST, args: List[Any]) -> ast.AST:
     """
     Updates the state map after an assignment.
     For Assign nodes, tracks the value if it's a constant.
+    
+    Args:
+        node: AST node (should be an Assign node)
+        args: [context] where context has a variable_state_map attribute
     """
-    if isinstance(node, ast.Assign) and node.targets:
-        # Simple case: single target
-        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            var_name = node.targets[0].id
-            
-            # Check if the assigned value is a constant
-            if isinstance(node.value, ast.Constant):
-                _variable_state_map[var_name] = node.value
-            else:
-                # Mark as unknown if not constant
-                _variable_state_map[var_name] = "UNKNOWN"
+    if len(args) > 0 and hasattr(args[0], 'variable_state_map'):
+        context = args[0]
+        if isinstance(node, ast.Assign) and node.targets:
+            # Simple case: single target
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                var_name = node.targets[0].id
+                
+                # Check if the assigned value is a constant
+                if isinstance(node.value, ast.Constant):
+                    context.variable_state_map[var_name] = node.value
+                else:
+                    # Mark as unknown if not constant
+                    context.variable_state_map[var_name] = "UNKNOWN"
     
     return node
 
@@ -360,11 +376,21 @@ def propagate_constants(root: ast.AST, args: List[Any]) -> ast.AST:
     """
     Main constant propagation transformation.
     Replaces variable references with their known constant values.
+    
+    Args:
+        root: AST root node
+        args: [context] where context has a variable_state_map attribute
     """
-    global _variable_state_map
-    _variable_state_map = {}
+    if len(args) == 0 or not hasattr(args[0], 'variable_state_map'):
+        # No context provided, return unchanged
+        return root
+    
+    context = args[0]
     
     class ConstantPropagator(ast.NodeTransformer):
+        def __init__(self, context):
+            self.context = context
+            
         def visit_Assign(self, node):
             # First, propagate in the value expression
             node.value = self.visit(node.value)
@@ -373,9 +399,9 @@ def propagate_constants(root: ast.AST, args: List[Any]) -> ast.AST:
             if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                 var_name = node.targets[0].id
                 if isinstance(node.value, ast.Constant):
-                    _variable_state_map[var_name] = node.value
+                    self.context.variable_state_map[var_name] = node.value
                 else:
-                    _variable_state_map[var_name] = "UNKNOWN"
+                    self.context.variable_state_map[var_name] = "UNKNOWN"
             
             return node
         
@@ -383,8 +409,8 @@ def propagate_constants(root: ast.AST, args: List[Any]) -> ast.AST:
             # Only replace loads, not stores
             if isinstance(node.ctx, ast.Load):
                 var_name = node.id
-                if var_name in _variable_state_map:
-                    state = _variable_state_map[var_name]
+                if var_name in self.context.variable_state_map:
+                    state = self.context.variable_state_map[var_name]
                     if isinstance(state, ast.Constant):
                         # Replace with the constant value
                         return ast.copy_location(
@@ -393,7 +419,7 @@ def propagate_constants(root: ast.AST, args: List[Any]) -> ast.AST:
                         )
             return node
     
-    propagator = ConstantPropagator()
+    propagator = ConstantPropagator(context)
     return propagator.visit(root)
 
 
@@ -637,36 +663,28 @@ AST_PRIMITIVES = [
         num_args=1  # node to delete
     ),
     
-    # Data Flow Analysis - Commented out due to global state
-    # These transformations need to be refactored to use context objects
-    # Transformation(
-    #     name="RESET_STATE_MAP",
-    #     operation=reset_state_map,
-    #     input_type="ast",
-    #     output_type="ast",
-    #     num_args=0
-    # ),
-    # Transformation(
-    #     name="GET_VARIABLE_STATE",
-    #     operation=get_variable_state,
-    #     input_type="ast",
-    #     output_type="any",  # Can be Constant or "UNKNOWN"
-    #     num_args=0
-    # ),
-    # Transformation(
-    #     name="UPDATE_VARIABLE_STATE",
-    #     operation=update_variable_state,
-    #     input_type="ast",
-    #     output_type="ast",
-    #     num_args=0
-    # ),
-    # Transformation(
-    #     name="PROPAGATE_CONSTANTS",
-    #     operation=propagate_constants,
-    #     input_type="ast",
-    #     output_type="ast",
-    #     num_args=0
-    # ),
+    # Data Flow Analysis - Now accepts context as argument
+    Transformation(
+        name="GET_VARIABLE_STATE",
+        operation=get_variable_state,
+        input_type="ast",
+        output_type="any",  # Can be Constant or "UNKNOWN"
+        num_args=1  # context with variable_state_map
+    ),
+    Transformation(
+        name="UPDATE_VARIABLE_STATE",
+        operation=update_variable_state,
+        input_type="ast",
+        output_type="ast",
+        num_args=1  # context with variable_state_map
+    ),
+    Transformation(
+        name="PROPAGATE_CONSTANTS",
+        operation=propagate_constants,
+        input_type="ast",
+        output_type="ast",
+        num_args=1  # context with variable_state_map
+    ),
     
     # Traversal
     Transformation(
@@ -677,3 +695,5 @@ AST_PRIMITIVES = [
         num_args=1  # node type
     ),
 ]
+# Export the context class
+__all__ = ['AST_PRIMITIVES', 'ConstantPropagationContext']
