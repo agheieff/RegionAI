@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.knowledge.hub import KnowledgeHub
 from regionai.reasoning import ReasoningEngine
+from regionai.reasoning.budget import DiscoveryBudget
 
 
 def demo_reasoning_engine():
@@ -69,11 +70,18 @@ def process_customer_order(customer, order):
         'confidence': 0.85
     }
     
-    print("\nRunning Discovery Cycle...")
+    print("\nRunning Prioritized Discovery Cycle...")
     print("-" * 50)
-    results = engine.run_discovery_cycle(context)
     
+    # Create a discovery budget
+    budget = DiscoveryBudget(max_heuristics_to_run=2)
+    print(f"Budget: Execute top {budget.max_heuristics_to_run} heuristics\n")
+    
+    results = engine.run_prioritized_discovery_cycle(context, budget)
+    
+    print(f"Heuristics Considered: {results.get('heuristics_considered', 'N/A')}")
     print(f"Heuristics Executed: {results['heuristics_executed']}")
+    print(f"Budget Exhausted: {results.get('budget_exhausted', False)}")
     print(f"Discoveries Made: {len(results['discoveries'])}")
     print(f"Errors: {len(results['errors'])}")
     

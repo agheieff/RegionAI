@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from regionai.knowledge.hub import KnowledgeHub
 from regionai.knowledge.graph import Concept
 from regionai.reasoning import ReasoningEngine, heuristic_registry
+from regionai.reasoning.budget import DiscoveryBudget
 
 
 def test_reasoning_engine_initialization():
@@ -28,7 +29,6 @@ def test_reasoning_engine_initialization():
     
     assert engine is not None
     assert engine.hub is hub
-    assert engine.registry is heuristic_registry
     
     print("✓ Reasoning engine initialized successfully")
 
@@ -227,8 +227,9 @@ def update_customer_profile(customer_id, profile_data):
         'tags': ['ast_analysis']  # Filter to AST-based heuristics
     }
     
-    # Run discovery cycle
-    results = engine.run_discovery_cycle(context)
+    # Run discovery cycle with budget
+    budget = DiscoveryBudget(max_heuristics_to_run=3)
+    results = engine.run_prioritized_discovery_cycle(context, budget)
     
     # Check results
     assert results['heuristics_executed'] > 0, "Should execute at least one heuristic"
@@ -283,6 +284,127 @@ def test_available_heuristics():
               f"score={heuristic_info['utility_score']}")
 
 
+def test_engine_respects_budget_and_priority():
+    """Test that the engine respects budget limits and executes heuristics by priority."""
+    print("\nTesting budget and priority-based execution...")
+    
+    # Create a fresh hub
+    hub = KnowledgeHub()
+    engine = ReasoningEngine(hub)
+    
+    # Prepare test context with code that triggers multiple heuristics
+    test_code = '''
+def manage_customer_orders(customer):
+    """Manage customer orders."""
+    customer.validate()
+    customer.save()
+'''
+    
+    context = {
+        'code': test_code,
+        'function_name': 'manage_customer_orders',
+        'confidence': 0.8
+    }
+    
+    # First, verify we have multiple heuristics with different scores
+    available = engine.get_available_heuristics()
+    implemented_heuristics = {name: info for name, info in available.items() 
+                            if info['has_implementation']}
+    
+    # Sort by utility score to identify the highest priority one
+    sorted_heuristics = sorted(implemented_heuristics.items(), 
+                             key=lambda x: x[1]['utility_score'], 
+                             reverse=True)
+    
+    if len(sorted_heuristics) < 2:
+        print("✗ Need at least 2 implemented heuristics for this test")
+        return
+    
+    highest_priority = sorted_heuristics[0]
+    second_priority = sorted_heuristics[1]
+    
+    print(f"  Highest priority: {highest_priority[0]} (score: {highest_priority[1]['utility_score']})")
+    print(f"  Second priority: {second_priority[0]} (score: {second_priority[1]['utility_score']})")
+    
+    # Run with budget of 1
+    budget = DiscoveryBudget(max_heuristics_to_run=1)
+    results = engine.run_prioritized_discovery_cycle(context, budget)
+    
+    # Verify budget was respected
+    assert results['heuristics_executed'] == 1, f"Should execute exactly 1 heuristic, but executed {results['heuristics_executed']}"
+    assert results['budget_exhausted'] == True, "Budget should be marked as exhausted"
+    
+    # Based on our heuristics, the highest priority one is "Sequential AST nodes imply PRECEDES" (0.95)
+    # For the test code, this won't find sequences, but "Method call implies PERFORMS" (0.85) will find actions
+    # So let's check what actually got discovered
+    
+    # For our test code with validate() and save() calls, "Method call implies PERFORMS" should run
+    # and create Customer PERFORMS Validate and Customer PERFORMS Save relationships
+    
+    # Get concepts and relations
+    customer_concept = Concept("Customer")
+    validate_concept = Concept("Validate")
+    save_concept = Concept("Save")
+    
+    # Check which heuristic actually ran based on what's in the graph
+    # If Sequential ran (0.95), there would be PRECEDES relations
+    # If Method call ran (0.85), there would be PERFORMS relations
+    # If Co-occurrence ran (0.75), there would be RELATED_TO relations
+    
+    # Look for any relations to determine which heuristic ran
+    all_edges = list(hub.wkg.graph.edges(data=True))
+    relation_types = {edge[2]['label'] for edge in all_edges}
+    
+    print(f"  Relations found: {relation_types}")
+    print(f"  Total relations: {len(all_edges)}")
+    
+    # Since Sequential (0.95) is highest priority but won't find sequences in our simple code,
+    # and Method call (0.85) is second priority and WILL find method calls,
+    # we need to adjust our test to ensure Sequential can actually find something
+    
+    # Let's use different test code that will trigger Sequential
+    print("\n  Retesting with sequential code...")
+    
+    # Clear the hub
+    hub = KnowledgeHub()
+    engine = ReasoningEngine(hub)
+    
+    # Code that will trigger Sequential AST nodes heuristic
+    test_code_sequential = '''
+def process_payment(payment):
+    """Process a payment."""
+    payment.validate()
+    payment.authorize()
+    payment.capture()
+'''
+    
+    context_sequential = {
+        'code': test_code_sequential,
+        'function_name': 'process_payment',
+        'confidence': 0.8
+    }
+    
+    # Run with budget of 1 - should only run Sequential (0.95)
+    results = engine.run_prioritized_discovery_cycle(context_sequential, budget)
+    
+    # Check that only PRECEDES relations exist (from Sequential heuristic)
+    all_edges = list(hub.wkg.graph.edges(data=True))
+    for edge in all_edges:
+        assert edge[2]['label'] == 'PRECEDES', f"With budget=1, should only have PRECEDES relations, but found {edge[2]['label']}"
+    
+    # Verify we have the expected PRECEDES relations
+    validate_concept = Concept("Validate")
+    authorize_concept = Concept("Authorize")
+    
+    validate_relations = hub.wkg.get_relations_with_confidence(validate_concept)
+    precedes_relations = [r for r in validate_relations 
+                         if str(r['relation']) == 'PRECEDES' and str(r['target']) == 'Authorize']
+    
+    assert len(precedes_relations) > 0, "Should have Validate PRECEDES Authorize from highest priority heuristic"
+    
+    print("✓ Engine correctly respects budget and priority")
+
+
 def run_all_tests():
     """Run all reasoning engine tests."""
     print("=" * 60)
@@ -296,7 +418,8 @@ def run_all_tests():
         test_sequential_nodes_imply_precedes,
         test_co_occurrence_implies_related,
         test_full_discovery_cycle,
-        test_available_heuristics
+        test_available_heuristics,
+        test_engine_respects_budget_and_priority
     ]
     
     failed = 0

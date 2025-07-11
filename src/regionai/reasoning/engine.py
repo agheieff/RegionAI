@@ -10,7 +10,7 @@ import logging
 
 from ..knowledge.hub import KnowledgeHub
 from ..knowledge.models import Heuristic
-from .registry import HeuristicRegistry
+from .budget import DiscoveryBudget
 
 logger = logging.getLogger(__name__)
 
@@ -23,33 +23,24 @@ class ReasoningEngine:
     concrete implementations, enabling dynamic, self-directed reasoning.
     """
     
-    def __init__(self, hub: KnowledgeHub, registry: Optional[HeuristicRegistry] = None):
+    def __init__(self, hub: KnowledgeHub):
         """
         Initialize the reasoning engine.
         
         Args:
             hub: The KnowledgeHub containing both world and reasoning graphs
-            registry: The heuristic registry (uses global registry if not provided)
         """
         self.hub = hub
-        
-        # Use the provided registry or import the global one
-        if registry is None:
-            from .registry import heuristic_registry
-            self.registry = heuristic_registry
-        else:
-            self.registry = registry
-        
-        logger.info(f"ReasoningEngine initialized with {len(self.registry)} registered heuristics")
+        logger.info("ReasoningEngine initialized")
     
-    def run_discovery_cycle(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def run_prioritized_discovery_cycle(self, context: Dict[str, Any], budget: DiscoveryBudget) -> Dict[str, Any]:
         """
-        Run a complete discovery cycle using all applicable heuristics.
+        Run a prioritized discovery cycle respecting the given budget.
         
         This method:
         1. Retrieves all heuristics from the ReasoningKnowledgeGraph
-        2. Filters for those with implementations
-        3. Executes each heuristic function
+        2. Sorts them by utility_score (highest first)
+        3. Executes heuristics until budget is exhausted
         4. Returns a summary of discoveries
         
         Args:
@@ -58,12 +49,15 @@ class ReasoningEngine:
                 - function_name: Name of function being analyzed
                 - confidence: Base confidence level
                 - tags: Optional context tags for filtering heuristics
+            budget: The discovery budget constraining this cycle
                 
         Returns:
             Dictionary with discovery results:
                 - heuristics_executed: Number of heuristics run
                 - discoveries: List of what was discovered
                 - errors: Any errors encountered
+                - heuristics_considered: Total heuristics available
+                - budget_exhausted: Whether budget limit was reached
         """
         results = {
             'heuristics_executed': 0,
@@ -82,14 +76,31 @@ class ReasoningEngine:
         heuristics = self._get_applicable_heuristics(context_tags)
         logger.info(f"Found {len(heuristics)} applicable heuristics")
         
-        # Execute each heuristic with an implementation
-        for heuristic in heuristics:
-            if not heuristic.implementation_id:
-                logger.debug(f"Skipping heuristic '{heuristic.name}' - no implementation")
-                continue
+        # Sort heuristics by utility score (highest first)
+        heuristics_with_impl = [h for h in heuristics if h.implementation_id]
+        heuristics_sorted = sorted(heuristics_with_impl, key=lambda h: h.utility_score, reverse=True)
+        
+        logger.info(f"Sorted {len(heuristics_sorted)} heuristics by utility score")
+        for h in heuristics_sorted[:3]:  # Log top 3
+            logger.debug(f"  {h.name}: utility_score={h.utility_score}")
+        
+        # Track total heuristics available
+        results['heuristics_considered'] = len(heuristics_sorted)
+        results['budget_exhausted'] = False
+        
+        # Import registry locally
+        from .registry import heuristic_registry
+        
+        # Execute heuristics up to budget limit
+        for heuristic in heuristics_sorted:
+            # Check if budget exhausted
+            if results['heuristics_executed'] >= budget.max_heuristics_to_run:
+                logger.info(f"Budget exhausted after {results['heuristics_executed']} heuristics")
+                results['budget_exhausted'] = True
+                break
             
             # Get the implementation function
-            func = self.registry.get(heuristic.implementation_id)
+            func = heuristic_registry.get(heuristic.implementation_id)
             if func is None:
                 error_msg = f"Implementation not found for heuristic '{heuristic.name}' (ID: {heuristic.implementation_id})"
                 logger.error(error_msg)
@@ -98,7 +109,7 @@ class ReasoningEngine:
             
             try:
                 # Execute the heuristic
-                logger.debug(f"Executing heuristic: {heuristic.name}")
+                logger.debug(f"Executing heuristic: {heuristic.name} (score: {heuristic.utility_score})")
                 func(self.hub, context)
                 results['heuristics_executed'] += 1
                 
@@ -160,7 +171,10 @@ class ReasoningEngine:
         Returns:
             True if successful, False otherwise
         """
-        func = self.registry.get(heuristic_id)
+        # Import registry locally
+        from .registry import heuristic_registry
+        
+        func = heuristic_registry.get(heuristic_id)
         if func is None:
             logger.error(f"Heuristic not found: {heuristic_id}")
             return False
@@ -189,8 +203,7 @@ class ReasoningEngine:
                     'description': node.description,
                     'utility_score': node.utility_score,
                     'implementation_id': node.implementation_id,
-                    'has_implementation': bool(node.implementation_id and 
-                                             self.registry.is_registered(node.implementation_id)),
+                    'has_implementation': bool(node.implementation_id),
                     'reasoning_type': node.reasoning_type.value
                 }
         
