@@ -30,6 +30,10 @@ class BasicBlock:
     back_edge_sources: Set[int] = field(default_factory=set)  # Blocks that jump back to this header
     loop_depth: int = 0
     
+    # Path-sensitive information
+    branch_condition: Optional[ast.AST] = None  # The test condition for conditional blocks
+    successor_conditions: Dict[int, Tuple[ast.AST, bool]] = field(default_factory=dict)  # Maps successor block ID to (condition, is_true_branch)
+    
     def add_successor(self, block_id: int):
         """Add a successor block."""
         self.successors.add(block_id)
@@ -205,10 +209,15 @@ class CFGBuilder(ast.NodeVisitor):
             
         # Add test to current block
         test_block = self.current_block
+        # Store the condition in the test block
+        self.cfg.blocks[test_block].branch_condition = node.test
+        self.cfg.blocks[test_block].type = BlockType.CONDITIONAL
         
         # Create blocks for then and else branches
         then_block = self.cfg.create_block()
         self.cfg.add_edge(test_block, then_block)
+        # Store condition info for the then branch
+        self.cfg.blocks[test_block].successor_conditions[then_block] = (node.test, True)
         
         # Visit then branch
         self.current_block = then_block
@@ -220,6 +229,8 @@ class CFGBuilder(ast.NodeVisitor):
         if node.orelse:
             else_block = self.cfg.create_block()
             self.cfg.add_edge(test_block, else_block)
+            # Store condition info for the else branch (negated condition)
+            self.cfg.blocks[test_block].successor_conditions[else_block] = (node.test, False)
             
             self.current_block = else_block
             for stmt in node.orelse:
@@ -237,6 +248,8 @@ class CFGBuilder(ast.NodeVisitor):
         elif else_exit == test_block:
             # Direct edge from test to merge for missing else
             self.cfg.add_edge(test_block, merge_block)
+            # Store condition info for skipping to merge (negated condition)
+            self.cfg.blocks[test_block].successor_conditions[merge_block] = (node.test, False)
             
         self.current_block = merge_block
     
