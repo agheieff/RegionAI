@@ -420,6 +420,47 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
             if state.equals(new_state) and state.path_constraints == new_state.path_constraints:
                 return True
         return False
+    
+    def merge_states_at_join(self, states: List[AnalysisState]) -> List[AnalysisState]:
+        """
+        Merge states at control flow join points.
+        
+        Strategy:
+        1. Group states by their abstract values
+        2. For each group, keep one representative with merged constraints
+        3. This reduces explosion while maintaining precision
+        """
+        if len(states) <= 1:
+            return states
+        
+        # For now, use a simple strategy: if we have too many states, merge them
+        MAX_STATES_PER_POINT = 5  # Configurable threshold
+        
+        if len(states) <= MAX_STATES_PER_POINT:
+            return states
+        
+        # Merge all states into one with TOP values for variables that differ
+        merged = states[0].copy()
+        merged.path_constraints = []  # Clear path constraints at merge
+        
+        # For each variable, if values differ across states, set to TOP
+        all_vars = set()
+        for state in states:
+            all_vars.update(state.abstract_state.sign_state.keys())
+        
+        for var in all_vars:
+            signs = set()
+            for state in states:
+                if var in state.abstract_state.sign_state:
+                    signs.add(state.abstract_state.sign_state[var])
+            
+            if len(signs) > 1:
+                # Different values on different paths - set to TOP
+                merged.abstract_state.set_sign(var, Sign.TOP)
+            elif len(signs) == 1:
+                merged.abstract_state.set_sign(var, signs.pop())
+        
+        return [merged]
 
 
 def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = None, 
