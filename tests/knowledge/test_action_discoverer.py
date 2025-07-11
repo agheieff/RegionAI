@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.knowledge.action_discoverer import ActionDiscoverer, DiscoveredAction
-from regionai.knowledge.graph import KnowledgeGraph, Concept
+from regionai.knowledge.graph import WorldKnowledgeGraph, Concept
 from regionai.knowledge.bayesian_updater import BayesianUpdater
 
 
@@ -174,7 +174,7 @@ def test_bayesian_action_updates():
     print("\nTesting Bayesian action belief updates...")
     
     # Create knowledge graph
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     
     # Update action beliefs

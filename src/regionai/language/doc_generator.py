@@ -6,7 +6,7 @@ by leveraging the semantic understanding captured in the Knowledge Graph.
 It represents the system's ability to explain its understanding of code.
 """
 from typing import List, Tuple, Optional
-from ..knowledge.graph import KnowledgeGraph, Concept
+from ..knowledge.graph import WorldKnowledgeGraph, Concept
 
 
 class DocumentationGenerator:
@@ -17,7 +17,7 @@ class DocumentationGenerator:
     of code structure and relationships back to humans in plain English.
     """
     
-    def __init__(self, knowledge_graph: KnowledgeGraph):
+    def __init__(self, knowledge_graph: WorldKnowledgeGraph):
         """
         Initialize the documentation generator.
         

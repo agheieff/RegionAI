@@ -11,7 +11,7 @@ import os
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from regionai.knowledge.graph import KnowledgeGraph, Concept, ConceptMetadata
+from regionai.knowledge.graph import WorldKnowledgeGraph, Concept, ConceptMetadata
 from regionai.language.doc_generator import DocumentationGenerator
 
 
@@ -20,7 +20,7 @@ def test_basic_summary_generation():
     print("Testing basic summary generation...")
     
     # Create a test knowledge graph
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concepts with varying confidence scores
     concepts = [
@@ -77,7 +77,7 @@ def test_single_concept_summary():
     """Test summary generation when only one concept is found."""
     print("\nTesting single concept summary...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add just one concept
     metadata = ConceptMetadata(
@@ -104,7 +104,7 @@ def test_no_concepts_summary():
     print("\nTesting no concepts summary...")
     
     # Empty knowledge graph
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     doc_gen = DocumentationGenerator(kg)
     summary = doc_gen.generate_summary("unknown_function")
@@ -121,7 +121,7 @@ def test_concept_ordering():
     """Test that concepts are ordered by confidence in the summary."""
     print("\nTesting concept ordering by confidence...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concepts with specific confidence scores (more than 5 to test limiting)
     concepts = [
@@ -179,7 +179,7 @@ def test_function_name_parsing():
     """Test that function names are properly parsed to find concepts."""
     print("\nTesting function name parsing...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concepts that match parts of a function name
     for concept_name in ["Customer", "Order", "Details"]:
@@ -241,7 +241,7 @@ def test_behavioral_summary_generation():
     print("\nTesting behavioral summary generation...")
     
     # Create a test knowledge graph with concepts and actions
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concepts
     concepts = [
@@ -326,7 +326,7 @@ def test_behavioral_summary_no_actions():
     """Test behavioral summary when concepts have no actions."""
     print("\nTesting behavioral summary with no actions...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concepts without actions
     metadata = ConceptMetadata(

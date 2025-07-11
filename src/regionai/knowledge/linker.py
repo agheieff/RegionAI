@@ -12,7 +12,8 @@ import logging
 
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import DocumentationQuality
-from .graph import KnowledgeGraph, Concept
+from .hub import KnowledgeHub
+from .graph import Concept, WorldKnowledgeGraph
 from .bayesian_updater import BayesianUpdater
 from ..language import nlp_utils
 from ..utils.component_loader import get_nlp_model
@@ -29,29 +30,31 @@ from .services import (
 
 class KnowledgeLinker:
     """
-    Enriches a KnowledgeGraph by finding relationships described in the
+    Enriches a WorldKnowledgeGraph by finding relationships described in the
     natural language documentation of a SemanticDB.
     
     This refactored version delegates to focused services for better
     separation of concerns and testability.
     """
     
-    def __init__(self, semantic_db: SemanticDB, knowledge_graph: KnowledgeGraph, config: RegionAIConfig = None):
+    def __init__(self, semantic_db: SemanticDB, knowledge_hub: KnowledgeHub, config: RegionAIConfig = None):
         """
         Initialize the Knowledge Linker.
         
         Args:
             semantic_db: Database containing analyzed code with documentation
-            knowledge_graph: Graph to enrich with discovered relationships
+            knowledge_hub: Hub containing both world and reasoning knowledge graphs
             config: Configuration object
         """
         self.db = semantic_db
-        self.knowledge_graph = knowledge_graph
+        self.knowledge_hub = knowledge_hub
+        # For backward compatibility, keep reference to world knowledge graph
+        self.knowledge_graph = knowledge_hub.wkg
         self.config = config or DEFAULT_CONFIG
         self.logger = logging.getLogger(__name__)
         
         # Initialize Bayesian updater for belief updates
-        self.bayesian_updater = BayesianUpdater(knowledge_graph, self.config)
+        self.bayesian_updater = BayesianUpdater(self.knowledge_graph, self.config)
         
         # Get the cached NLP model
         self.nlp_model = get_nlp_model()
@@ -60,19 +63,19 @@ class KnowledgeLinker:
         
         # Initialize focused services
         self.relationship_discoverer = RelationshipDiscoverer(
-            knowledge_graph, self.bayesian_updater, self.config
+            self.knowledge_graph, self.bayesian_updater, self.config
         )
         self.action_coordinator = ActionCoordinator(self.bayesian_updater, self.config)
         self.grammar_extractor = GrammarExtractor(self.nlp_model, self.config) if self.nlp_model else None
     
     
-    def enrich_graph(self) -> KnowledgeGraph:
+    def enrich_graph(self) -> WorldKnowledgeGraph:
         """
         Scans all docstrings for sentences that link known concepts and adds
-        them to the KnowledgeGraph as new, evidence-based relationships.
+        them to the WorldKnowledgeGraph as new, evidence-based relationships.
         
         Returns:
-            The enriched KnowledgeGraph
+            The enriched WorldKnowledgeGraph
         """
         # Process all documented entries in the semantic database
         for entry in self.db.find_training_candidates():

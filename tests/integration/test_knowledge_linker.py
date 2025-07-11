@@ -10,7 +10,7 @@ import os
 import json
 
 # Add the src directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.pipeline.api import (
     build_knowledge_graph, discover_domain_model
@@ -106,12 +106,14 @@ def get_order_items(order_id):
     
     # Build knowledge graph without enrichment
     print("\n1. Building graph from code patterns only...")
-    kg_basic = build_knowledge_graph(code, include_source=True, enrich_from_docs=False)
+    hub_basic = build_knowledge_graph(code, include_source=True, enrich_from_docs=False)
+    kg_basic = hub_basic.wkg
     print(f"Basic graph: {len(kg_basic)} concepts, {len(kg_basic.graph.edges())} relationships")
     
     # Build knowledge graph with enrichment
     print("\n2. Building graph with documentation enrichment...")
-    kg_enriched = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    hub_enriched = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    kg_enriched = hub_enriched.wkg
     print(f"Enriched graph: {len(kg_enriched)} concepts, {len(kg_enriched.graph.edges())} relationships")
     
     # Verify enrichment added relationships
@@ -268,7 +270,8 @@ def assign_manager(employee_id, manager_id):
 '''
     
     # Build enriched graph
-    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    kg = hub.wkg  # Get the world knowledge graph from the hub
     
     # Check employee-department relationship
     employee_rels = kg.get_relations_with_confidence("Employee")
@@ -404,7 +407,8 @@ def update_customer_shipping_address(customer_id, shipping_address):
 '''
     
     # Build the knowledge graph with enrichment
-    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    kg = hub.wkg
     
     # Check that concepts were discovered
     assert "Customer" in kg, "Customer concept should be discovered"
@@ -499,7 +503,8 @@ def create_customer(name, email):
 '''
     
     # Build the knowledge graph with enrichment
-    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    kg = hub.wkg
     
     # Check that 'Customer' and 'Record' concepts exist
     assert "Customer" in kg, "Customer concept should be discovered"

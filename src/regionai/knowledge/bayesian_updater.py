@@ -5,7 +5,7 @@ This module contains the core logic for taking new evidence and updating
 the probabilistic belief distributions (alpha/beta parameters) for
 concepts and relationships.
 """
-from .graph import KnowledgeGraph, Concept, Relation
+from .graph import WorldKnowledgeGraph, Concept, Relation
 from ..config import RegionAIConfig, DEFAULT_CONFIG
 
 
@@ -14,12 +14,12 @@ class BayesianUpdater:
     Applies Bayesian updates to the beliefs within a KnowledgeGraph.
     """
 
-    def __init__(self, knowledge_graph: KnowledgeGraph, config: RegionAIConfig = None):
+    def __init__(self, knowledge_graph: WorldKnowledgeGraph, config: RegionAIConfig = None):
         """
         Initializes the updater with a reference to the graph it will modify.
 
         Args:
-            knowledge_graph: The KnowledgeGraph instance to be updated.
+            knowledge_graph: The WorldKnowledgeGraph instance to be updated.
             config: Configuration object with evidence strengths
         """
         self.kg = knowledge_graph

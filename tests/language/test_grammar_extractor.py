@@ -256,15 +256,15 @@ def test_knowledge_linker_integration():
     print("\nTesting KnowledgeLinker integration...")
     
     from regionai.semantic.db import SemanticDB
-    from regionai.knowledge import KnowledgeGraph
+    from regionai.knowledge.hub import KnowledgeHub
     from regionai.knowledge.linker import KnowledgeLinker
     
     # Create test infrastructure
     db = SemanticDB()
-    kg = KnowledgeGraph()
+    hub = KnowledgeHub()
     
     # Create linker
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     
     # Verify NLP model was initialized
     assert linker.nlp_model is not None

@@ -14,7 +14,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.knowledge.graph import (
-    KnowledgeGraph, Concept, Relation, 
+    WorldKnowledgeGraph, Concept, Relation, 
     ConceptMetadata, RelationMetadata
 )
 
@@ -22,18 +22,18 @@ from regionai.knowledge.graph import (
 def test_empty_graph():
     """Test creating and querying an empty graph."""
     print("Testing empty graph...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     assert len(kg) == 0
     assert kg.get_concepts() == []
-    assert str(kg) == "KnowledgeGraph(0 concepts, 0 relationships)"
+    assert str(kg) == "WorldKnowledgeGraph(0 concepts, 0 relationships)"
     print("✓ Empty graph works correctly")
 
 
 def test_add_concept():
     """Test adding concepts to the graph."""
     print("\nTesting concept addition...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add concept without metadata
     kg.add_concept(Concept("User"))
@@ -66,7 +66,7 @@ def test_add_concept():
 def test_add_relation():
     """Test adding relationships between concepts."""
     print("\nTesting relationship addition...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Add relation (should auto-create concepts)
     kg.add_relation(Concept("User"), Concept("Order"), Relation("HAS_MANY"))
@@ -103,7 +103,7 @@ def test_add_relation():
 def test_find_related_concepts():
     """Test finding related concepts."""
     print("\nTesting related concept discovery...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Build a small graph
     kg.add_relation(Concept("User"), Concept("Order"), Relation("HAS_MANY"))
@@ -128,7 +128,7 @@ def test_find_related_concepts():
 def test_concept_hierarchy():
     """Test hierarchical concept relationships."""
     print("\nTesting concept hierarchy...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Build inheritance hierarchy
     kg.add_relation(Concept("Animal"), Concept("Mammal"), Relation("IS_A"))
@@ -149,7 +149,7 @@ def test_concept_hierarchy():
 def test_merge_concepts():
     """Test merging similar concepts."""
     print("\nTesting concept merging...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Create two similar concepts with different metadata
     meta1 = ConceptMetadata(
@@ -196,7 +196,7 @@ def test_merge_concepts():
 def test_json_serialization():
     """Test JSON export and import."""
     print("\nTesting JSON serialization...")
-    kg1 = KnowledgeGraph()
+    kg1 = WorldKnowledgeGraph()
     
     # Build a graph
     meta = ConceptMetadata(
@@ -220,7 +220,7 @@ def test_json_serialization():
     assert data["relations"][0]["target"] == "Category"
     
     # Import from JSON
-    kg2 = KnowledgeGraph()
+    kg2 = WorldKnowledgeGraph()
     kg2.from_json(json_str)
     
     assert len(kg2) == len(kg1)
@@ -238,7 +238,7 @@ def test_json_serialization():
 def test_visualization():
     """Test text visualization of the graph."""
     print("\nTesting visualization...")
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     
     # Build a simple graph
     meta = ConceptMetadata(

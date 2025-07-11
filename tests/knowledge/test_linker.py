@@ -12,7 +12,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.knowledge.linker import KnowledgeLinker
-from regionai.knowledge.graph import KnowledgeGraph, Concept, Relation
+from regionai.knowledge.hub import KnowledgeHub
+from regionai.knowledge.graph import WorldKnowledgeGraph, Concept, Relation
 from regionai.knowledge.discovery import ConceptDiscoverer
 from regionai.semantic.db import SemanticDB, SemanticEntry
 from regionai.semantic.fingerprint import (
@@ -62,15 +63,15 @@ def test_simple_relationship_extraction():
         "Gets the user profile. A user has one profile."
     ))
     
-    # Create knowledge graph with known concepts
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("User"))
-    kg.add_concept(Concept("Order"))
-    kg.add_concept(Concept("Profile"))
+    # Create knowledge hub with known concepts
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("User"))
+    hub.add_world_concept(Concept("Order"))
+    hub.add_world_concept(Concept("Profile"))
     
     # Run the linker
-    linker = KnowledgeLinker(db, kg)
-    enriched_kg = linker.enrich_graph()
+    linker = KnowledgeLinker(db, hub)
+    enriched_hub = linker.enrich_graph()
     
     # Check that relationships were discovered
     discovered = linker.get_discovered_relationships()
@@ -125,12 +126,12 @@ def test_confidence_scoring():
         "Process payment"  # Very brief
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Invoice"))
-    kg.add_concept(Concept("Customer"))
-    kg.add_concept(Concept("Payment"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Invoice"))
+    hub.add_world_concept(Concept("Customer"))
+    hub.add_world_concept(Concept("Payment"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()
@@ -161,15 +162,15 @@ def test_evidence_tracking():
         f"Gets the category of a product. {evidence_text}"
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Product"))
-    kg.add_concept(Concept("Category"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Product"))
+    hub.add_world_concept(Concept("Category"))
     
-    linker = KnowledgeLinker(db, kg)
-    enriched_kg = linker.enrich_graph()
+    linker = KnowledgeLinker(db, hub)
+    enriched_wkg = linker.enrich_graph()
     
     # Check the relationship was added with evidence
-    product_rels = enriched_kg.get_relations_with_confidence(Concept("Product"))
+    product_rels = enriched_wkg.get_relations_with_confidence(Concept("Product"))
     
     # Look specifically for the BELONGS_TO relationship since we may have multiple
     # relationships between Product and Category (e.g., RELATED_TO from co-occurrence)
@@ -204,11 +205,11 @@ def test_bidirectional_relationships():
         "Gets all tasks for a user. A user manages multiple tasks."
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("User"))
-    kg.add_concept(Concept("Task"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("User"))
+    hub.add_world_concept(Concept("Task"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()
@@ -238,11 +239,11 @@ def test_inheritance_relationships():
         "Creates an admin user. An AdminUser is a type of User with elevated privileges."
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("AdminUser"))
-    kg.add_concept(Concept("User"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("AdminUser"))
+    hub.add_world_concept(Concept("User"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()
@@ -277,13 +278,13 @@ def test_complex_sentences():
         """
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Order"))
-    kg.add_concept(Concept("Product"))
-    kg.add_concept(Concept("Inventory"))
-    kg.add_concept(Concept("Shipment"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Order"))
+    hub.add_world_concept(Concept("Product"))
+    hub.add_world_concept(Concept("Inventory"))
+    hub.add_world_concept(Concept("Shipment"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()
@@ -325,12 +326,12 @@ def test_enrichment_report():
         "Adds a comment to a post. A post can have many comments."
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Post"))
-    kg.add_concept(Concept("Author"))
-    kg.add_concept(Concept("Comment"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Post"))
+    hub.add_world_concept(Concept("Author"))
+    hub.add_world_concept(Concept("Comment"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     report = linker.generate_enrichment_report()
@@ -359,11 +360,11 @@ def test_no_relationships_found():
         "Calculates the total amount."
     ))
     
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Total"))
-    kg.add_concept(Concept("Amount"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Total"))
+    hub.add_world_concept(Concept("Amount"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()
@@ -388,11 +389,11 @@ def test_concept_variations():
     ))
     
     # Concepts are singular
-    kg = KnowledgeGraph()
-    kg.add_concept(Concept("Product"))
-    kg.add_concept(Concept("Category"))
+    hub = KnowledgeHub()
+    hub.add_world_concept(Concept("Product"))
+    hub.add_world_concept(Concept("Category"))
     
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     linker.enrich_graph()
     
     discovered = linker.get_discovered_relationships()

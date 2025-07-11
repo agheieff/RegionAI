@@ -12,8 +12,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.knowledge import (
-    KnowledgeGraph, BayesianUpdater, ActionDiscoverer
+    BayesianUpdater, ActionDiscoverer
 )
+from regionai.knowledge.graph import WorldKnowledgeGraph
 
 
 def test_action_discovery_integration():
@@ -21,7 +22,7 @@ def test_action_discovery_integration():
     print("Testing action discovery integration...")
     
     # Create knowledge graph
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     discoverer = ActionDiscoverer()
     
@@ -97,7 +98,7 @@ def test_action_verb_variations():
     """Test that different verb forms are properly lemmatized."""
     print("\nTesting verb lemmatization in action discovery...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     discoverer = ActionDiscoverer()
     
@@ -147,7 +148,7 @@ def test_action_confidence_accumulation():
     """Test that multiple evidences increase action confidence."""
     print("\nTesting action confidence accumulation...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     
     # Add multiple evidences for same action

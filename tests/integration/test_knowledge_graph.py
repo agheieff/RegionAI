@@ -10,7 +10,7 @@ import json
 import tempfile
 
 # Add the src directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from regionai.pipeline.api import (
     build_knowledge_graph, discover_domain_model,
@@ -133,7 +133,8 @@ def check_product_availability(product_id):
 '''
     
     # Build knowledge graph
-    kg = build_knowledge_graph(code)
+    hub = build_knowledge_graph(code)
+    kg = hub.wkg  # Get the world knowledge graph from the hub
     
     # Check discovered concepts
     concepts = kg.get_concepts()

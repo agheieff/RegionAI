@@ -12,7 +12,8 @@ from ..analysis.interprocedural import InterproceduralAnalyzer, AnalysisResult
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import SemanticFingerprint, Behavior
 from ..language.trainer import LanguageBridgeTrainer
-from ..knowledge.graph import KnowledgeGraph, Concept
+from ..knowledge.hub import KnowledgeHub
+from ..knowledge.graph import Concept, WorldKnowledgeGraph
 from ..knowledge.discovery import ConceptDiscoverer
 from ..knowledge.linker import KnowledgeLinker
 from ..config import RegionAIConfig
@@ -579,7 +580,7 @@ def evaluate_language_model(semantic_db: SemanticDB,
 
 def build_knowledge_graph(code: str, include_source: bool = True, 
                          enrich_from_docs: bool = True,
-                         config: Optional[RegionAIConfig] = None) -> KnowledgeGraph:
+                         config: Optional[RegionAIConfig] = None) -> KnowledgeHub:
     """
     Build a knowledge graph of real-world concepts from code analysis.
     
@@ -596,7 +597,7 @@ def build_knowledge_graph(code: str, include_source: bool = True,
         config: Optional configuration for analysis
         
     Returns:
-        KnowledgeGraph containing discovered concepts and relationships
+        KnowledgeHub containing discovered concepts and relationships
     """
     # First, perform semantic analysis
     print("Performing semantic analysis...")
@@ -604,36 +605,52 @@ def build_knowledge_graph(code: str, include_source: bool = True,
     
     if not result.semantic_db:
         print("Warning: No semantic information found")
-        return KnowledgeGraph()
+        return KnowledgeHub(config)
     
     print(f"Analyzed {len(result.semantic_db._entries)} functions")
+    
+    # Create a KnowledgeHub
+    knowledge_hub = KnowledgeHub(config)
     
     # Discover concepts from the semantic database
     print("Discovering concepts...")
     discoverer = ConceptDiscoverer(result.semantic_db, config)
-    knowledge_graph = discoverer.discover_concepts()
+    # For now, ConceptDiscoverer will populate the world knowledge graph
+    discovered_graph = discoverer.discover_concepts()
+    
+    # Transfer discovered concepts to the hub's world knowledge graph
+    for concept in discovered_graph.get_concepts():
+        metadata = discovered_graph.get_concept_metadata(concept)
+        knowledge_hub.add_world_concept(concept, metadata)
+    
+    # Transfer relationships
+    for source, target, data in discovered_graph.graph.edges(data=True):
+        knowledge_hub.add_world_relation(source, target, data['label'], 
+                                       metadata=data.get('metadata'),
+                                       confidence=data.get('confidence', 0.5),
+                                       evidence=data.get('evidence', ''))
     
     # Print discovery statistics
-    print(f"Discovered {len(knowledge_graph)} concepts")
-    print(f"Found {len(knowledge_graph.graph.edges())} relationships from code patterns")
+    print(f"Discovered {len(knowledge_hub.wkg)} concepts")
+    print(f"Found {len(knowledge_hub.wkg.graph.edges())} relationships from code patterns")
     
     # Enrich with relationships from documentation
     if enrich_from_docs and include_source:
         print("Enriching graph from documentation...")
-        linker = KnowledgeLinker(result.semantic_db, knowledge_graph, config)
-        knowledge_graph = linker.enrich_graph()
+        linker = KnowledgeLinker(result.semantic_db, knowledge_hub, config)
+        linker.enrich_graph()
         
         # Print enrichment statistics
         discovered_rels = linker.get_discovered_relationships()
         if discovered_rels:
             print(f"Discovered {len(discovered_rels)} additional relationships from text")
     
-    print(f"Final graph: {len(knowledge_graph)} concepts, {len(knowledge_graph.graph.edges())} relationships")
+    print(f"Final graph: {len(knowledge_hub.wkg)} concepts, {len(knowledge_hub.wkg.graph.edges())} relationships")
     
-    return knowledge_graph
+    return knowledge_hub
 
 
-def build_knowledge_graph_from_semantic_db(semantic_db: SemanticDB) -> KnowledgeGraph:
+def build_knowledge_graph_from_semantic_db(semantic_db: SemanticDB) -> WorldKnowledgeGraph:
     """
     Build a knowledge graph from an existing SemanticDB.
     
@@ -643,7 +660,7 @@ def build_knowledge_graph_from_semantic_db(semantic_db: SemanticDB) -> Knowledge
         semantic_db: Pre-analyzed semantic database
         
     Returns:
-        KnowledgeGraph with discovered concepts
+        WorldKnowledgeGraph with discovered concepts
     """
     discoverer = ConceptDiscoverer(semantic_db)
     return discoverer.discover_concepts()
@@ -675,7 +692,8 @@ def discover_domain_model(code: str, output_file: Optional[str] = None,
         - visualization: Text visualization of the graph
     """
     # Build the knowledge graph with enrichment
-    kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=enrich_from_docs)
+    hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=enrich_from_docs)
+    kg = hub.wkg  # Get the world knowledge graph from the hub
     
     # Extract information for the result
     concepts = []
@@ -707,7 +725,7 @@ def discover_domain_model(code: str, output_file: Optional[str] = None,
     # Generate enrichment report if applicable
     enrichment_report = ""
     if enrich_from_docs:
-        linker = KnowledgeLinker(result.semantic_db, kg)
+        linker = KnowledgeLinker(result.semantic_db, hub)
         linker.enrich_graph()  # Re-run to populate internal state
         enrichment_report = linker.generate_enrichment_report()
     
@@ -728,7 +746,7 @@ def discover_domain_model(code: str, output_file: Optional[str] = None,
 
 
 def generate_docs_for_function(function_name: str, code: str = None, 
-                             knowledge_graph: KnowledgeGraph = None) -> str:
+                             knowledge_graph: WorldKnowledgeGraph = None) -> str:
     """
     Generate natural language documentation for a function using the Knowledge Graph.
     
@@ -763,7 +781,8 @@ def generate_docs_for_function(function_name: str, code: str = None,
             return f"Error: Either code or knowledge_graph must be provided to generate documentation for '{function_name}'."
         
         # Build and enrich the knowledge graph
-        kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+        hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+        kg = hub.wkg
     else:
         kg = knowledge_graph
     
@@ -777,7 +796,7 @@ def generate_docs_for_function(function_name: str, code: str = None,
 
 
 def generate_behavioral_docs_for_function(function_name: str, code: str = None,
-                                        knowledge_graph: KnowledgeGraph = None) -> str:
+                                        knowledge_graph: WorldKnowledgeGraph = None) -> str:
     """
     Generate behavioral documentation for a function using the Knowledge Graph.
     
@@ -814,7 +833,8 @@ def generate_behavioral_docs_for_function(function_name: str, code: str = None,
             return f"Error: Either code or knowledge_graph must be provided to generate behavioral documentation for '{function_name}'."
         
         # Build and enrich the knowledge graph with action discovery
-        kg = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+        hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+        kg = hub.wkg
         
         # Need to ensure actions are discovered
         # This would normally happen during enrichment if source code is available
@@ -911,7 +931,7 @@ def find_concept_functions(code: str, concept_name: str) -> Dict[str, List[str]]
     return organized
 
 
-def build_knowledge_graph_from_codebase(code: str) -> KnowledgeGraph:
+def build_knowledge_graph_from_codebase(code: str) -> WorldKnowledgeGraph:
     """
     Build a complete, enriched knowledge graph from a codebase.
     
@@ -924,9 +944,10 @@ def build_knowledge_graph_from_codebase(code: str) -> KnowledgeGraph:
         code: Python source code to analyze
         
     Returns:
-        A fully populated and enriched KnowledgeGraph
+        A fully populated and enriched WorldKnowledgeGraph
     """
-    return build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    hub = build_knowledge_graph(code, include_source=True, enrich_from_docs=True)
+    return hub.wkg
 
 
 def explain_concept_discovery(code: str, concept_name: str) -> str:

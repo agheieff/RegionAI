@@ -240,14 +240,14 @@ class TestIntegration(unittest.TestCase):
     def test_knowledge_linker_initialization(self):
         """Test KnowledgeLinker initializes with all optional components."""
         from regionai.semantic.db import SemanticDB
-        from regionai.knowledge.graph import KnowledgeGraph
+        from regionai.knowledge.hub import KnowledgeHub
         from regionai.knowledge.linker import KnowledgeLinker
         
         db = SemanticDB()
-        kg = KnowledgeGraph()
+        hub = KnowledgeHub()
         
         # Should not raise even if optional components fail
-        linker = KnowledgeLinker(db, kg)
+        linker = KnowledgeLinker(db, hub)
         self.assertIsNotNone(linker)
         self.assertTrue(hasattr(linker, 'nlp_model'))
 

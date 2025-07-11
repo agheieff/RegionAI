@@ -11,8 +11,8 @@ import os
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from regionai.knowledge import KnowledgeGraph, BayesianUpdater, ActionDiscoverer
-from regionai.knowledge.graph import Concept, Relation
+from regionai.knowledge import BayesianUpdater, ActionDiscoverer
+from regionai.knowledge.graph import WorldKnowledgeGraph, Concept, Relation
 
 
 def test_basic_action_sequence_discovery():
@@ -145,7 +145,7 @@ def test_sequence_belief_updates():
     print("\nTesting sequence belief updates...")
     
     # Create knowledge graph
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     
     # Update sequence belief
@@ -199,14 +199,15 @@ def test_knowledge_linker_sequence_integration():
     print("\nTesting KnowledgeLinker sequence integration...")
     
     from regionai.semantic.db import SemanticDB
+    from regionai.knowledge.hub import KnowledgeHub
     from regionai.knowledge.linker import KnowledgeLinker
     
     # Create test data
     db = SemanticDB()
-    kg = KnowledgeGraph()
+    hub = KnowledgeHub()
     
     # Create linker
-    linker = KnowledgeLinker(db, kg)
+    linker = KnowledgeLinker(db, hub)
     
     # Test code
     source_code = '''
@@ -296,7 +297,7 @@ def test_action_metadata():
     """Test that actions are properly tagged as actions in the graph."""
     print("\nTesting action metadata...")
     
-    kg = KnowledgeGraph()
+    kg = WorldKnowledgeGraph()
     updater = BayesianUpdater(kg)
     
     # Create an action through update

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from ..semantic.db import SemanticDB
 from ..semantic.fingerprint import Behavior
-from .graph import KnowledgeGraph, Concept, Relation, ConceptMetadata, RelationMetadata
+from .graph import WorldKnowledgeGraph, Concept, Relation, ConceptMetadata, RelationMetadata
 from ..language import nlp_utils
 from ..utils.component_loader import get_nlp_model
 from ..config import RegionAIConfig, DEFAULT_CONFIG
@@ -81,14 +81,14 @@ class ConceptDiscoverer:
         if self.nlp_model is None:
             print("Warning: spaCy model not found. Using basic extraction.")
     
-    def discover_concepts(self) -> KnowledgeGraph:
+    def discover_concepts(self) -> WorldKnowledgeGraph:
         """
         Main discovery method that applies multiple heuristics to find concepts.
         
         Returns:
-            A populated KnowledgeGraph with discovered concepts and relationships
+            A populated WorldKnowledgeGraph with discovered concepts and relationships
         """
-        kg = KnowledgeGraph()
+        kg = WorldKnowledgeGraph()
         
         # Apply different discovery heuristics
         crud_concepts = self._discover_crud_patterns()
@@ -335,7 +335,7 @@ class ConceptDiscoverer:
         
         return False
     
-    def _add_crud_concepts(self, kg: KnowledgeGraph, patterns: List[CRUDPattern]):
+    def _add_crud_concepts(self, kg: WorldKnowledgeGraph, patterns: List[CRUDPattern]):
         """Add concepts discovered through CRUD patterns to the graph."""
         for pattern in patterns:
             # Convert completeness score to alpha/beta
@@ -365,7 +365,7 @@ class ConceptDiscoverer:
             
             kg.add_concept(Concept(pattern.concept_name), metadata)
     
-    def _add_noun_concepts(self, kg: KnowledgeGraph, concepts: Set[str]):
+    def _add_noun_concepts(self, kg: WorldKnowledgeGraph, concepts: Set[str]):
         """Add concepts discovered through noun extraction."""
         for concept in concepts:
             # Don't add if already added by CRUD discovery
@@ -393,7 +393,7 @@ class ConceptDiscoverer:
                 
                 kg.add_concept(Concept(concept), metadata)
     
-    def _add_behavior_concepts(self, kg: KnowledgeGraph, 
+    def _add_behavior_concepts(self, kg: WorldKnowledgeGraph, 
                              behavior_concepts: Dict[str, Set[str]]):
         """Add concepts discovered through behavior analysis."""
         for behavior_type, concepts in behavior_concepts.items():
@@ -408,7 +408,7 @@ class ConceptDiscoverer:
                     
                     kg.add_concept(Concept(concept), metadata)
     
-    def _add_relationships(self, kg: KnowledgeGraph, 
+    def _add_relationships(self, kg: WorldKnowledgeGraph, 
                           relationships: List[Tuple[str, str, str]]):
         """Add discovered relationships to the graph."""
         for source, target, rel_type in relationships:
@@ -422,7 +422,7 @@ class ConceptDiscoverer:
             kg.add_relation(Concept(source), Concept(target), 
                           Relation(rel_type.upper()), metadata)
     
-    def _merge_similar_concepts(self, kg: KnowledgeGraph):
+    def _merge_similar_concepts(self, kg: WorldKnowledgeGraph):
         """
         Post-process to merge concepts that likely represent the same entity.
         

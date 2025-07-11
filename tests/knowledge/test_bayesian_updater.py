@@ -2,14 +2,14 @@
 Tests for the BayesianUpdater service.
 """
 import pytest
-from regionai.knowledge.graph import KnowledgeGraph, Concept, Relation
+from regionai.knowledge.graph import WorldKnowledgeGraph, Concept, Relation
 from regionai.knowledge.bayesian_updater import BayesianUpdater
 
 
 @pytest.fixture
 def base_graph():
-    """Creates a simple KnowledgeGraph for testing."""
-    kg = KnowledgeGraph()
+    """Creates a simple WorldKnowledgeGraph for testing."""
+    kg = WorldKnowledgeGraph()
     kg.add_concept(Concept("User"))
     kg.add_concept(Concept("Order"))
     kg.add_relation(

@@ -125,13 +125,14 @@ class RelationMetadata:
         return self.belief
 
 
-class KnowledgeGraph:
+class WorldKnowledgeGraph:
     """
     A graph representing real-world concepts and their relationships.
     
     This is the core data structure of RegionAI's Common Sense Engine.
     It builds a model of reality by analyzing how code manipulates
-    real-world entities.
+    real-world entities. This graph specifically focuses on domain-specific
+    knowledge about the world, as opposed to abstract reasoning strategies.
     """
     
     def __init__(self):
@@ -611,4 +612,8 @@ class KnowledgeGraph:
     
     def __str__(self) -> str:
         """String representation of the graph."""
-        return f"KnowledgeGraph({len(self.graph.nodes())} concepts, {len(self.graph.edges())} relationships)"
+        return f"WorldKnowledgeGraph({len(self.graph.nodes())} concepts, {len(self.graph.edges())} relationships)"
+
+
+# Backward compatibility alias
+KnowledgeGraph = WorldKnowledgeGraph
