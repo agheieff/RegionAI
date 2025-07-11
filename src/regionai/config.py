@@ -29,6 +29,7 @@ class RegionAIConfig:
     max_function_analysis_depth: int = 10  # For interprocedural analysis
     enable_path_sensitivity: bool = False  # Future feature flag
     enable_flow_sensitivity: bool = True
+    max_states_per_point: int = 5  # Maximum states to track at each program point
     
     # Abstract domain precision
     max_range_value: float = 1000000  # Maximum tracked range value
@@ -102,6 +103,7 @@ class RegionAIConfig:
                 widening_threshold=1,
                 max_fixpoint_iterations=50,
                 max_function_analysis_depth=5,
+                max_states_per_point=3,  # Fewer states for speed
                 cache_summaries=True,
                 report_potential_errors=False,
                 inline_small_functions=False,
@@ -112,6 +114,7 @@ class RegionAIConfig:
                 widening_threshold=10,
                 max_fixpoint_iterations=500,
                 max_function_analysis_depth=20,
+                max_states_per_point=10,  # More states for precision
                 enable_path_sensitivity=True,
                 report_potential_errors=True,
                 strict_null_checking=True,

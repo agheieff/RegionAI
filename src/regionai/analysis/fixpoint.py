@@ -403,7 +403,7 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
         return self.block_states
     
     def _compute_input_states(self, block: BasicBlock) -> List[AnalysisState]:
-        """Get all input states from predecessors."""
+        """Get all input states from predecessors and merge at join points."""
         if not block.predecessors:
             return self.block_states.get(block.id, [])
         
@@ -411,6 +411,11 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
         for pred_id in block.predecessors:
             if pred_id in self.block_states:
                 input_states.extend(self.block_states[pred_id])
+        
+        # If this is a join point (multiple predecessors), merge states
+        if len(block.predecessors) > 1 and len(input_states) > 0:
+            # This is a control flow join point - apply merging
+            input_states = self.merge_states_at_join(input_states)
         
         return input_states
     
@@ -426,41 +431,96 @@ class PathSensitiveFixpointAnalyzer(FixpointAnalyzer):
         Merge states at control flow join points.
         
         Strategy:
-        1. Group states by their abstract values
-        2. For each group, keep one representative with merged constraints
-        3. This reduces explosion while maintaining precision
+        1. Group states with identical abstract values
+        2. Merge path constraints for identical states
+        3. If too many distinct states remain, merge them all
         """
         if len(states) <= 1:
             return states
         
-        # For now, use a simple strategy: if we have too many states, merge them
-        MAX_STATES_PER_POINT = 5  # Configurable threshold
+        # Group states by their abstract values
+        from collections import defaultdict
+        state_groups = defaultdict(list)
         
-        if len(states) <= MAX_STATES_PER_POINT:
-            return states
-        
-        # Merge all states into one with TOP values for variables that differ
-        merged = states[0].copy()
-        merged.path_constraints = []  # Clear path constraints at merge
-        
-        # For each variable, if values differ across states, set to TOP
-        all_vars = set()
         for state in states:
-            all_vars.update(state.abstract_state.sign_state.keys())
+            # Create a hashable key from the abstract state
+            # For now, just use sign states as the key
+            state_key = tuple(sorted([
+                (var, sign) for var, sign in state.abstract_state.sign_state.items()
+            ]))
+            state_groups[state_key].append(state)
         
-        for var in all_vars:
-            signs = set()
-            for state in states:
-                if var in state.abstract_state.sign_state:
-                    signs.add(state.abstract_state.sign_state[var])
+        # Merge states within each group (same abstract values, different paths)
+        merged_states = []
+        for state_key, group in state_groups.items():
+            if len(group) == 1:
+                merged_states.append(group[0])
+            else:
+                # States have same abstract values but came from different paths
+                # Keep one representative and merge path constraints
+                representative = group[0].copy()
+                # Collect all unique constraints
+                all_constraints = []
+                seen_constraints = set()
+                for state in group:
+                    for constraint in state.path_constraints:
+                        constraint_key = (ast.dump(constraint.condition), constraint.is_true)
+                        if constraint_key not in seen_constraints:
+                            seen_constraints.add(constraint_key)
+                            all_constraints.append(constraint)
+                
+                # If we have contradictory constraints, this path is infeasible
+                # For now, just keep all constraints
+                representative.path_constraints = all_constraints
+                merged_states.append(representative)
+        
+        # If we still have too many distinct states, merge them more aggressively
+        MAX_STATES_PER_POINT = self.context.config.max_states_per_point if hasattr(self.context.config, 'max_states_per_point') else 5
+        
+        if len(merged_states) > MAX_STATES_PER_POINT:
+            # Aggressive merge: combine all states into one
+            final_merged = merged_states[0].copy()
+            final_merged.path_constraints = []  # Clear path constraints
             
-            if len(signs) > 1:
-                # Different values on different paths - set to TOP
-                merged.abstract_state.set_sign(var, Sign.TOP)
-            elif len(signs) == 1:
-                merged.abstract_state.set_sign(var, signs.pop())
+            # Collect all variables
+            all_vars = set()
+            for state in merged_states:
+                all_vars.update(state.abstract_state.sign_state.keys())
+                all_vars.update(state.abstract_state.null_state.keys())
+            
+            # For each variable, join the values
+            for var in all_vars:
+                # Sign domain
+                signs = set()
+                for state in merged_states:
+                    if var in state.abstract_state.sign_state:
+                        signs.add(state.abstract_state.sign_state[var])
+                
+                if len(signs) == 0:
+                    pass  # Variable not present
+                elif len(signs) == 1:
+                    final_merged.abstract_state.set_sign(var, signs.pop())
+                else:
+                    # Multiple different values - set to TOP
+                    final_merged.abstract_state.set_sign(var, Sign.TOP)
+                
+                # Nullability domain
+                nulls = set()
+                for state in merged_states:
+                    if var in state.abstract_state.null_state:
+                        nulls.add(state.abstract_state.null_state[var])
+                
+                if len(nulls) == 0:
+                    pass  # Variable not present
+                elif len(nulls) == 1:
+                    final_merged.abstract_state.set_nullability(var, nulls.pop())
+                else:
+                    # Multiple different values - set to NULLABLE (conservative)
+                    final_merged.abstract_state.set_nullability(var, Nullability.NULLABLE)
+            
+            return [final_merged]
         
-        return [merged]
+        return merged_states
 
 
 def analyze_with_fixpoint(tree: ast.AST, initial_assumptions: Dict[str, Sign] = None, 
