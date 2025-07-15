@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "regionai"
+version = "0.1.0"
+description = "Region-based embeddings for language models"
+authors = ["Arkadiy Agheieff <agheieff@pm.me>"]
+license = "Proprietary"
+readme = "README.md"
+repository = "https://github.com/agheieff/RegionAI"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^2.0.0"
+numpy = "^1.24.0"
+sentence-transformers = "^2.2.0"
+networkx = "^3.0"
+spacy = "^3.7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+ruff = "^0.1.0"
+jupyterlab = "^4.0.0"
+ipykernel = "^6.0.0"
+pytest-cov = "^5.0.0"
+autoflake = "^2.3.1"
+pytest-timeout = "^2.3.1"
+
+[tool.poetry.scripts]
+regionai-math = "regionai.bootstrap_math:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+norecursedirs = ["scripts", ".venv"]
