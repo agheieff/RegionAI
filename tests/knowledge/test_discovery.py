@@ -11,11 +11,11 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.discovery import ConceptDiscoverer
-from tier3.world_contexts.knowledge.graph import Concept
-from tier2.computer_science.semantic.db import SemanticDB, SemanticEntry
-from tier2.domains.code.semantic.fingerprint import SemanticFingerprint, Behavior
-from tier1.analysis.summary import CallContext
+from regionai.world_contexts.knowledge.discovery import ConceptDiscoverer
+from regionai.world_contexts.knowledge.graph import Concept
+from regionai.domains.code.semantic.db import SemanticDB, SemanticEntry
+from regionai.domains.code.semantic.fingerprint import SemanticFingerprint, Behavior
+from regionai.analysis.summary import CallContext
 
 
 def create_test_semantic_db() -> SemanticDB:

@@ -9,10 +9,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier1.analysis.fixpoint import PathSensitiveFixpointAnalyzer, AnalysisState
-from tier1.analysis.cfg import build_cfg
-from tier2.computer_science.analysis.context import AnalysisContext  
-from tier1.core.abstract_domains import AbstractState, Sign
+from regionai.analysis.fixpoint import PathSensitiveFixpointAnalyzer, AnalysisState
+from regionai.analysis.cfg import build_cfg
+from regionai.domains.code.analysis.context import AnalysisContext  
+from regionai.core.abstract_domains import AbstractState, Sign
 
 
 def test_simple_merge():

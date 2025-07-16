@@ -2,7 +2,7 @@
 Tests for Lean AST data structures.
 """
 
-from tier2.linguistics.lean_ast import (
+from regionai.linguistics.lean_ast import (
     Hypothesis, Tactic, TacticType, Theorem, ProofState,
     ProofStep, TheoremDatabase
 )

@@ -8,8 +8,8 @@ import os
 # Add the root directory to path for tier imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from tier3.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept, Relation
-from tier3.world_contexts.knowledge.bayesian_updater import BayesianUpdater
+from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept, Relation
+from regionai.world_contexts.knowledge.bayesian_updater import BayesianUpdater
 
 
 @pytest.fixture

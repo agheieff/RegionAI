@@ -13,12 +13,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from unittest.mock import Mock, patch
 
-from tier1.brains.metacognition import (
+from regionai.brains.metacognition import (
     MetaCognitiveMonitor, BrainStateTracker, DisagreementDetector,
     StrategySelector, ConfidenceCalibrator
 )
-from tier1.brains.metacognition.monitor import InterventionType
-from tier1.config import Config
+from regionai.brains.metacognition.monitor import InterventionType
+from regionai.config import Config
 
 
 class TestMetaCognitiveMonitor:

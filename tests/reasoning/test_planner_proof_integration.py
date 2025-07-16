@@ -4,12 +4,12 @@ Tests for Planner integration with ProofRunner.
 
 from unittest.mock import Mock, patch
 
-from tier3.scenarios.planner import Planner
-from tier3.scenarios.utility_updater import UtilityUpdater
-from tier3.world_contexts.knowledge.models import ReasoningKnowledgeGraph, Heuristic
-from tier2.linguistics.lean_ast import Theorem, ProofState
-from tier2.knowledge.exceptions import ExponentialSearchException
-from tier2.knowledge.planning import ExecutionPlan
+from regionai.scenarios.planner import Planner
+from regionai.scenarios.utility_updater import UtilityUpdater
+from regionai.world_contexts.knowledge.models import ReasoningKnowledgeGraph, Heuristic
+from regionai.linguistics.lean_ast import Theorem, ProofState
+from regionai.knowledge.exceptions import ExponentialSearchException
+from regionai.knowledge.planning import ExecutionPlan
 
 
 class TestPlannerProofIntegration:
@@ -166,7 +166,7 @@ class TestPlannerProofIntegration:
     
     def test_attempt_proof_with_trace_recorder(self):
         """Test proof attempt with trace recording."""
-        from tier3.scenarios.proof_trace import ProofTraceRecorder
+        from regionai.scenarios.proof_trace import ProofTraceRecorder
         
         planner = Planner()
         rkg, _ = self.create_mock_rkg_with_proof_heuristics()

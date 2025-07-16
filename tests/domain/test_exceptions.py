@@ -2,7 +2,7 @@
 Tests for custom domain exceptions.
 """
 
-from tier2.knowledge.exceptions import (
+from regionai.knowledge.exceptions import (
     RegionAIException,
     ExponentialSearchException,
     ProofTimeoutException,

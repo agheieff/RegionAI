@@ -11,8 +11,8 @@ import os
 # Add the root directory to path for tier imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from tier2.domains.language.context_resolver import ContextResolver
-from tier3.world_contexts.knowledge.graph import Concept
+from regionai.domains.language.context_resolver import ContextResolver
+from regionai.world_contexts.knowledge.graph import Concept
 
 
 class TestContextResolver:
@@ -199,10 +199,10 @@ class TestContextResolverIntegration:
     
     def test_parser_pronoun_resolution(self):
         """Test that parser correctly uses context resolver for pronouns."""
-        from tier2.domains.language.symbolic_parser import SymbolicParser
-        from tier2.domains.language.candidate_generator import CandidateGenerator
-        from tier3.world_contexts.knowledge.graph import WorldKnowledgeGraph
-        from tier3.world_contexts.knowledge.hub import KnowledgeHub
+        from regionai.domains.language.symbolic_parser import SymbolicParser
+        from regionai.domains.language.candidate_generator import CandidateGenerator
+        from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph
+        from regionai.world_contexts.knowledge.hub import KnowledgeHub
         
         # Create knowledge graph
         graph = WorldKnowledgeGraph()

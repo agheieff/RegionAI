@@ -14,11 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
-from tier2.domains.temporal import (
+from regionai.domains.temporal import (
     TemporalWorldModel, Episode, TransitionModel,
     TemporalPattern
 )
-from tier1.config import RegionAIConfig
+from regionai.config import RegionAIConfig
 
 
 class TestTemporalWorldModel:

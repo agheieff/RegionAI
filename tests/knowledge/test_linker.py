@@ -12,15 +12,15 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.linker import KnowledgeLinker
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.graph import Concept
-from tier2.computer_science.semantic.db import SemanticDB, SemanticEntry
-from tier2.domains.code.semantic.fingerprint import (
+from regionai.world_contexts.knowledge.linker import KnowledgeLinker
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.graph import Concept
+from regionai.domains.code.semantic.db import SemanticDB, SemanticEntry
+from regionai.domains.code.semantic.fingerprint import (
     SemanticFingerprint, NaturalLanguageContext, 
     DocumentedFingerprint, Behavior
 )
-from tier1.analysis.summary import CallContext
+from regionai.analysis.summary import CallContext
 
 
 def create_documented_entry(func_name: str, docstring: str, 

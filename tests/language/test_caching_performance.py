@@ -12,10 +12,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from unittest.mock import Mock
-from tier2.domains.language.symbolic_parser import SymbolicParser
-from tier2.domains.language.candidate_generator import CandidateGenerator
-from tier2.domains.language.symbolic import RegionCandidate
-from tier3.world_contexts.knowledge.graph import Concept
+from regionai.domains.language.symbolic_parser import SymbolicParser
+from regionai.domains.language.candidate_generator import CandidateGenerator
+from regionai.domains.language.symbolic import RegionCandidate
+from regionai.world_contexts.knowledge.graph import Concept
 
 
 class TestSymbolicParserCaching:

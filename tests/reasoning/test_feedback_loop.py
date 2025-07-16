@@ -12,13 +12,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.graph import Concept, Relation
-from tier3.world_contexts.knowledge.models import Heuristic
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.graph import Concept, Relation
+from regionai.world_contexts.knowledge.models import Heuristic
 from regionai.reasoning import ReasoningEngine
-from tier3.reasoning.budget import DiscoveryBudget
-from tier3.reasoning.context import AnalysisContext
-from tier1.config import HEURISTIC_LEARNING_RATE
+from regionai.reasoning.budget import DiscoveryBudget
+from regionai.reasoning.context import AnalysisContext
+from regionai.config import HEURISTIC_LEARNING_RATE
 
 
 def test_engine_updates_utility_scores_based_on_discovery():
@@ -161,7 +161,7 @@ def new_function(obj):
     }
     
     # Import and test a heuristic directly
-    from tier3.reasoning.heuristic_implementations import method_call_implies_performs
+    from regionai.reasoning.heuristic_implementations import method_call_implies_performs
     
     # Should return True for new discoveries
     result = method_call_implies_performs(hub, context)

@@ -9,8 +9,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier2.computer_science.analysis.context import AnalysisContext, AbstractLocation, LocationType
-from tier2.computer_science.analysis.alias_analysis import (
+from regionai.domains.code.analysis.context import AnalysisContext, AbstractLocation, LocationType
+from regionai.domains.code.analysis.alias_analysis import (
     analyze_alias_assignment, analyze_mutation_effects,
     merge_points_to_maps
 )

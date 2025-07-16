@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from pathlib import Path
 import tempfile
 
-from tier2.linguistics.lean_parser import (
+from regionai.linguistics.lean_parser import (
     LeanParser, LeanFileValidator
 )
 

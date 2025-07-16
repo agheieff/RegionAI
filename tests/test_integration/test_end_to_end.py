@@ -16,10 +16,10 @@ from regionai.discovery import (
     STRUCTURED_DATA_PRIMITIVES,
     AST_PRIMITIVES
 )
-from tier1.discovery.discovery_engine import DiscoveryEngine
-from tier2.data.problem import Problem
-from tier2.computer_science.analysis.interprocedural import analyze_interprocedural
-from tier1.core.abstract_domains import (
+from regionai.discovery.discovery_engine import DiscoveryEngine
+from regionai.data.problem import Problem
+from regionai.domains.code.analysis.interprocedural import analyze_interprocedural
+from regionai.core.abstract_domains import (
     Sign, prove_property
 )
 

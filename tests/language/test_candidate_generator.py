@@ -13,9 +13,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from unittest.mock import Mock
-from tier2.domains.language.candidate_generator import CandidateGenerator
-from tier3.world_contexts.knowledge.graph import Concept, WorldKnowledgeGraph
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.domains.language.candidate_generator import CandidateGenerator
+from regionai.world_contexts.knowledge.graph import Concept, WorldKnowledgeGraph
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
 
 
 class TestCandidateGenerator:

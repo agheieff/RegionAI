@@ -12,8 +12,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
-from tier2.computer_science.analysis.interprocedural import InterproceduralAnalyzer
-from tier2.domains.code.semantic.fingerprint import Behavior, SemanticFingerprint
+from regionai.domains.code.analysis.interprocedural import InterproceduralAnalyzer
+from regionai.domains.code.semantic.fingerprint import Behavior, SemanticFingerprint
 
 
 class TestSemanticFingerprint:

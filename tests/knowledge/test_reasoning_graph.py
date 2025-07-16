@@ -12,8 +12,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.models import ReasoningConcept, Heuristic, ReasoningType
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.models import ReasoningConcept, Heuristic, ReasoningType
 
 
 def test_reasoning_graph_initialization():

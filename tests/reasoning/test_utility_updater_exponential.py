@@ -4,8 +4,8 @@ Tests for UtilityUpdater exponential failure handling.
 
 from unittest.mock import patch
 
-from tier3.scenarios.utility_updater import UtilityUpdater
-from tier3.world_contexts.knowledge.models import Heuristic
+from regionai.scenarios.utility_updater import UtilityUpdater
+from regionai.world_contexts.knowledge.models import Heuristic
 
 
 class TestUtilityUpdaterExponentialFailure:

@@ -12,11 +12,11 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.graph import Concept
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.graph import Concept
 from regionai.reasoning import ReasoningEngine, heuristic_registry
-from tier3.reasoning.budget import DiscoveryBudget
-from tier3.reasoning.context import AnalysisContext
+from regionai.reasoning.budget import DiscoveryBudget
+from regionai.reasoning.context import AnalysisContext
 
 
 def test_reasoning_engine_initialization():

@@ -15,10 +15,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from unittest.mock import patch, MagicMock
 import subprocess
 
-from tier3.scenarios.tactic_executor import (
+from regionai.scenarios.tactic_executor import (
     TacticExecutor, MockTacticExecutor, TacticExecutionError, LeanNotFoundError
 )
-from tier2.linguistics.lean_ast import ProofState, Tactic, TacticType, Hypothesis
+from regionai.linguistics.lean_ast import ProofState, Tactic, TacticType, Hypothesis
 
 
 class TestTacticExecutor(unittest.TestCase):

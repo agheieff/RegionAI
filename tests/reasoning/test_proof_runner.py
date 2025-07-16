@@ -12,16 +12,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import time
 from unittest.mock import Mock
 
-from tier3.scenarios.proof_runner import (
+from regionai.scenarios.proof_runner import (
     ProofRunner, ProofMetrics, ProofRunnerPool
 )
-from tier2.knowledge.exceptions import (
+from regionai.knowledge.exceptions import (
     ExponentialSearchException, ProofTimeoutException
 )
-from tier2.linguistics.lean_ast import (
+from regionai.linguistics.lean_ast import (
     ProofState, Tactic, TacticType, Theorem, Hypothesis
 )
-from tier1.config import RegionAIConfig
+from regionai.config import RegionAIConfig
 
 
 class TestProofMetrics:
@@ -224,7 +224,7 @@ class TestProofRunner:
     
     def test_integration_with_trace_recorder(self):
         """Test integration with proof trace recorder."""
-        from tier3.scenarios.proof_trace import ProofTraceRecorder
+        from regionai.scenarios.proof_trace import ProofTraceRecorder
         
         trace_recorder = Mock(spec=ProofTraceRecorder)
         theorem = Theorem(name="test", statement="P")

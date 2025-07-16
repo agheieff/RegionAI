@@ -9,8 +9,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import pytest
-from tier2.computer_science.analysis.interprocedural import InterproceduralAnalyzer
-from tier1.core.abstract_domains import Sign, Nullability
+from regionai.domains.code.analysis.interprocedural import InterproceduralAnalyzer
+from regionai.core.abstract_domains import Sign, Nullability
 
 
 class TestContextSensitiveAnalysis:

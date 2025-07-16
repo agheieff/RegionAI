@@ -11,7 +11,7 @@ import unittest
 # Add the root directory to path for tier imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from tier1.utils.text_utils import to_singular, to_plural, is_plural, get_singular_plural_forms
+from regionai.utils.text_utils import to_singular, to_plural, is_plural, get_singular_plural_forms
 
 
 class TestPluralization(unittest.TestCase):

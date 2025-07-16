@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from regionai.knowledge import (
     BayesianUpdater, ActionDiscoverer
 )
-from tier3.world_contexts.knowledge.graph import WorldKnowledgeGraph
+from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph
 
 
 def test_action_discovery_integration():

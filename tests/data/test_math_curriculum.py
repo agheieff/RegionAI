@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from pathlib import Path
 from unittest.mock import patch
 
-from tier3.world_contexts.math_curriculum import MathCurriculum, MathProblem
-from tier2.linguistics.lean_ast import Theorem, Hypothesis
+from regionai.world_contexts.math_curriculum import MathCurriculum, MathProblem
+from regionai.linguistics.lean_ast import Theorem, Hypothesis
 
 
 class TestMathProblem:
@@ -292,7 +292,7 @@ class TestMathCurriculumIntegration:
     @patch('regionai.data.math_curriculum.MathCurriculum.get_problems')
     def test_factory_integration(self, mock_get_problems, mock_load):
         """Test that MathCurriculum integrates with factory."""
-        from tier2.data.curriculum_factory import create_curriculum
+        from regionai.data.curriculum_factory import create_curriculum
         
         # Mock the get_problems to return test data
         mock_problems = [

@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import ast
 from regionai.actions.code_generator import CodeGenerator, SslFixerTransformer
-from tier2.knowledge.actions import FixSuggestion
-from tier3.world_contexts.knowledge.models import FunctionArtifact
+from regionai.knowledge.actions import FixSuggestion
+from regionai.world_contexts.knowledge.models import FunctionArtifact
 
 
 def test_fix_suggestion_creation():

@@ -10,18 +10,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import ast
 
-from tier1.core.abstract_domains import (
+from regionai.core.abstract_domains import (
     Sign, Nullability, 
     sign_add, sign_multiply, nullability_join,
     prove_property
 )
-from tier2.domains.code.range_domain import (
+from regionai.domains.code.range_domain import (
     Range, range_add, range_widen, check_array_bounds
 )
-from tier2.computer_science import (
+from regionai.domains.code import (
     build_cfg, build_call_graph
 )
-# from tier2.computer_science.analysis.interprocedural import analyze_interprocedural  # Commented to avoid circular import
+# from regionai.domains.code.analysis.interprocedural import analyze_interprocedural  # Commented to avoid circular import
 
 
 class TestSignDomain:

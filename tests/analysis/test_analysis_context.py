@@ -16,9 +16,10 @@ import inspect
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier2.computer_science.analysis.context import AnalysisContext, RegionAIConfig
-from tier1.analysis.fixpoint import analyze_with_fixpoint
-from tier1.core.abstract_domains import (
+from regionai.analysis.context import AnalysisContext
+from regionai.config import RegionAIConfig
+from regionai.analysis.fixpoint import analyze_with_fixpoint
+from regionai.core.abstract_domains import (
     Sign, Nullability, AbstractState, analyze_sign, check_null_dereference,
     prove_property, analyze_assignment
 )

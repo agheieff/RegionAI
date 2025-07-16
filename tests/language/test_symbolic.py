@@ -12,8 +12,8 @@ import os
 # Add the root directory to path for tier imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from tier2.domains.language.symbolic import RegionCandidate, SymbolicConstraint
-from tier3.world_contexts.knowledge.graph import Concept
+from regionai.domains.language.symbolic import RegionCandidate, SymbolicConstraint
+from regionai.world_contexts.knowledge.graph import Concept
 
 
 class TestRegionCandidate:

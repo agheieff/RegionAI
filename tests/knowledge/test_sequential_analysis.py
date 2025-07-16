@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
 from regionai.knowledge import BayesianUpdater, ActionDiscoverer
-from tier3.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept
+from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept
 
 
 def test_basic_action_sequence_discovery():
@@ -199,9 +199,9 @@ def test_knowledge_linker_sequence_integration():
     """Test that KnowledgeLinker properly processes sequences."""
     print("\nTesting KnowledgeLinker sequence integration...")
     
-    from tier2.computer_science.semantic.db import SemanticDB
-    from tier3.world_contexts.knowledge.hub import KnowledgeHub
-    from tier3.world_contexts.knowledge.linker import KnowledgeLinker
+    from regionai.domains.code.semantic.db import SemanticDB
+    from regionai.world_contexts.knowledge.hub import KnowledgeHub
+    from regionai.world_contexts.knowledge.linker import KnowledgeLinker
     
     # Create test data
     db = SemanticDB()

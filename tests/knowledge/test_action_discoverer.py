@@ -12,9 +12,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.action_discoverer import ActionDiscoverer
-from tier3.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept
-from tier3.world_contexts.knowledge.bayesian_updater import BayesianUpdater
+from regionai.world_contexts.knowledge.action_discoverer import ActionDiscoverer
+from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph, Concept
+from regionai.world_contexts.knowledge.bayesian_updater import BayesianUpdater
 
 
 def test_basic_action_discovery():

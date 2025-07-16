@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
 try:
-    from tier2.domains.language.grammar_extractor import GrammarPatternExtractor
+    from regionai.domains.language.grammar_extractor import GrammarPatternExtractor
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure spaCy is installed: pip install spacy")
@@ -256,9 +256,9 @@ def test_knowledge_linker_integration():
     """Test integration with KnowledgeLinker."""
     print("\nTesting KnowledgeLinker integration...")
     
-    from tier2.computer_science.semantic.db import SemanticDB
-    from tier3.world_contexts.knowledge.hub import KnowledgeHub
-    from tier3.world_contexts.knowledge.linker import KnowledgeLinker
+    from regionai.domains.code.semantic.db import SemanticDB
+    from regionai.world_contexts.knowledge.hub import KnowledgeHub
+    from regionai.world_contexts.knowledge.linker import KnowledgeLinker
     
     # Create test infrastructure
     db = SemanticDB()

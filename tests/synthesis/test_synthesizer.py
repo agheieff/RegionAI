@@ -12,10 +12,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.models import ComposedHeuristic, Heuristic, ReasoningType
-from tier3.reasoning.trace import ReasoningTrace
-from tier2.domains.code.synthesis import HeuristicSynthesizer
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.models import ComposedHeuristic, Heuristic, ReasoningType
+from regionai.reasoning.trace import ReasoningTrace
+from regionai.domains.code.synthesis import HeuristicSynthesizer
 
 
 def test_synthesizer_creates_composed_heuristic_from_traces():

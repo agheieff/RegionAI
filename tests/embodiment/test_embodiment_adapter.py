@@ -14,12 +14,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import numpy as np
 from unittest.mock import Mock, patch
 
-from tier2.domains.embodiment import (
+from regionai.domains.embodiment import (
     EmbodimentAdapter, SensorStream, PerceptualRegion,
     PredictiveCoder, AffordanceDetector
 )
-from tier2.domains.embodiment.sensor_stream import SensorModality
-from tier1.config import Config
+from regionai.domains.embodiment.sensor_stream import SensorModality
+from regionai.config import Config
 
 
 class TestEmbodimentAdapter:

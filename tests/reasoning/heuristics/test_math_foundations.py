@@ -14,11 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from unittest.mock import Mock, MagicMock
 
-from tier3.reasoning.heuristics.math_foundations import (
+from regionai.reasoning.heuristics.math_foundations import (
     heuristic_intro, heuristic_exact, heuristic_apply,
     reset_hypothesis_names, _generate_hypothesis_name, _normalize_expr
 )
-from tier2.linguistics.lean_ast import ProofState, Hypothesis, Tactic, TacticType
+from regionai.linguistics.lean_ast import ProofState, Hypothesis, Tactic, TacticType
 
 
 class TestMathFoundationsHeuristics(unittest.TestCase):

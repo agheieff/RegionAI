@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import torch
 import ast
 
-from tier2.core.transformation import (
+from regionai.core.transformation import (
     Transformation, TransformationSequence,
     ConditionalTransformation, AppliedTransformation
 )
@@ -19,8 +19,8 @@ from regionai.discovery import (
     PRIMITIVE_TRANSFORMATIONS, STRUCTURED_DATA_PRIMITIVES,
     AST_PRIMITIVES
 )
-from tier1.discovery.discovery_engine import DiscoveryEngine
-from tier2.data.problem import Problem
+from regionai.discovery.discovery_engine import DiscoveryEngine
+from regionai.data.problem import Problem
 
 
 class TestPrimitiveTransformations:

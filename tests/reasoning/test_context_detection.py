@@ -12,8 +12,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.reasoning.context import ContextDetector, ContextRule
-from tier3.reasoning.context_rules import DEFAULT_CONTEXT_RULES
+from regionai.reasoning.context import ContextDetector, ContextRule
+from regionai.reasoning.context_rules import DEFAULT_CONTEXT_RULES
 
 
 def test_context_detector_database():

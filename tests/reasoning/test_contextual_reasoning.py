@@ -12,13 +12,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.hub import KnowledgeHub
-from tier3.world_contexts.knowledge.graph import Concept
-from tier3.world_contexts.knowledge.models import Heuristic, ReasoningType
+from regionai.world_contexts.knowledge.hub import KnowledgeHub
+from regionai.world_contexts.knowledge.graph import Concept
+from regionai.world_contexts.knowledge.models import Heuristic, ReasoningType
 from regionai.reasoning import ReasoningEngine
-from tier3.reasoning.budget import DiscoveryBudget
-from tier3.reasoning.context import AnalysisContext
-from tier1.config import HEURISTIC_LEARNING_RATE
+from regionai.reasoning.budget import DiscoveryBudget
+from regionai.reasoning.context import AnalysisContext
+from regionai.config import HEURISTIC_LEARNING_RATE
 
 
 def test_engine_selects_and_learns_based_on_context():

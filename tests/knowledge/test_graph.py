@@ -13,7 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier3.world_contexts.knowledge.graph import (
+from regionai.world_contexts.knowledge.graph import (
     WorldKnowledgeGraph, Concept, Relation, 
     ConceptMetadata, RelationMetadata
 )

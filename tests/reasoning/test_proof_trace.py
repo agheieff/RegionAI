@@ -14,10 +14,10 @@ import tempfile
 import threading
 from pathlib import Path
 
-from tier3.scenarios.proof_trace import (
+from regionai.scenarios.proof_trace import (
     ProofTraceRecorder, ProofTraceAnalyzer
 )
-from tier2.linguistics.lean_ast import (
+from regionai.linguistics.lean_ast import (
     ProofStep, Tactic, TacticType, ProofState, Hypothesis
 )
 

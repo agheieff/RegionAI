@@ -10,8 +10,8 @@ import os
 # Add the root directory to path for tier imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from tier3.scenarios.utility_updater import UtilityUpdater
-from tier3.world_contexts.knowledge.models import Heuristic, ReasoningType
+from regionai.scenarios.utility_updater import UtilityUpdater
+from regionai.world_contexts.knowledge.models import Heuristic, ReasoningType
 
 
 def test_utility_updater_initialization():

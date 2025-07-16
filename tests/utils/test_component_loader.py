@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 # Add the root directory to path for tier imports
 
-from tier1.utils.component_loader import (
+from regionai.utils.component_loader import (
     load_optional_component,
     requires_component,
     get_nlp_model,
@@ -232,7 +232,7 @@ class TestIntegration(unittest.TestCase):
         with patch('regionai.language.nlp_extractor.get_nlp_model') as mock_get_nlp:
             mock_get_nlp.return_value = None
             
-            from tier2.language.nlp_extractor import NLPExtractor
+            from regionai.language.nlp_extractor import NLPExtractor
             
             with self.assertRaises(RuntimeError) as context:
                 NLPExtractor()
@@ -241,7 +241,7 @@ class TestIntegration(unittest.TestCase):
     
     def test_action_discoverer_initialization(self):
         """Test ActionDiscoverer initializes with optional NLP component."""
-        from tier3.world_contexts.knowledge.action_discoverer import ActionDiscoverer
+        from regionai.world_contexts.knowledge.action_discoverer import ActionDiscoverer
         
         # Should not raise even if NLP is not available
         discoverer = ActionDiscoverer()
@@ -254,7 +254,7 @@ class TestIntegration(unittest.TestCase):
         with patch('regionai.domains.language.grammar_extractor.get_nlp_model') as mock_get_nlp:
             mock_get_nlp.return_value = None
             
-            from tier2.domains.language.grammar_extractor import GrammarPatternExtractor
+            from regionai.domains.language.grammar_extractor import GrammarPatternExtractor
             
             with self.assertRaises(RuntimeError) as context:
                 GrammarPatternExtractor()
@@ -263,9 +263,9 @@ class TestIntegration(unittest.TestCase):
     
     def test_knowledge_linker_initialization(self):
         """Test KnowledgeLinker initializes with all optional components."""
-        from tier2.computer_science.semantic.db import SemanticDB
-        from tier3.world_contexts.knowledge.hub import KnowledgeHub
-        from tier3.world_contexts.knowledge.linker import KnowledgeLinker
+        from regionai.domains.code.semantic.db import SemanticDB
+        from regionai.world_contexts.knowledge.hub import KnowledgeHub
+        from regionai.world_contexts.knowledge.linker import KnowledgeLinker
         
         db = SemanticDB()
         hub = KnowledgeHub()
