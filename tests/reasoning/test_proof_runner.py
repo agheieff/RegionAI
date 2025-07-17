@@ -12,13 +12,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import time
 from unittest.mock import Mock
 
-from regionai.scenarios.proof_runner import (
+from regionai.reasoning.proof_runner import (
     ProofRunner, ProofMetrics, ProofRunnerPool
 )
 from regionai.knowledge.exceptions import (
     ExponentialSearchException, ProofTimeoutException
 )
-from regionai.linguistics.lean_ast import (
+from regionai.domains.language.lean_ast import (
     ProofState, Tactic, TacticType, Theorem, Hypothesis
 )
 from regionai.config import RegionAIConfig
@@ -58,18 +58,18 @@ class TestProofMetrics:
         # Not enough data
         assert metrics.get_entropy_trend(window=5) is None
         
-        # Decreasing entropy (good progress)
-        metrics.goal_entropies = [1.0, 0.9, 0.8, 0.7, 0.6]
+        # Decreasing entropy (good progress) - need window+1 items
+        metrics.goal_entropies = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5]
         trend = metrics.get_entropy_trend(window=5)
         assert trend < 0  # Negative slope means decreasing
         
         # Increasing entropy (bad progress)
-        metrics.goal_entropies = [0.5, 0.6, 0.7, 0.8, 0.9]
+        metrics.goal_entropies = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         trend = metrics.get_entropy_trend(window=5)
         assert trend > 0  # Positive slope means increasing
         
         # Flat entropy (no progress)
-        metrics.goal_entropies = [0.5, 0.5, 0.5, 0.5, 0.5]
+        metrics.goal_entropies = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
         trend = metrics.get_entropy_trend(window=5)
         assert abs(trend) < 0.001  # Nearly zero
 
@@ -179,19 +179,20 @@ class TestProofRunner:
         runner = ProofRunner()
         
         # Empty state (completed)
-        state = ProofState(completed=True)
+        state = ProofState(is_complete=True)
         runner.update_goal_state(state)
         assert runner.metrics.goal_entropies[-1] == 0.0
         
         # Single simple goal
-        state = ProofState(goals=["P"])
+        state = ProofState(current_goal="P")
         runner.update_goal_state(state)
         entropy1 = runner.metrics.goal_entropies[-1]
         assert entropy1 > 0
         
         # Multiple complex goals
         state = ProofState(
-            goals=["P → Q → R", "∀x. P(x) → ∃y. Q(x, y)"],
+            current_goal="P → Q → R",
+            remaining_goals=["∀x. P(x) → ∃y. Q(x, y)"],
             hypotheses=[Hypothesis("h1", "P"), Hypothesis("h2", "Q")]
         )
         runner.update_goal_state(state)
@@ -224,7 +225,7 @@ class TestProofRunner:
     
     def test_integration_with_trace_recorder(self):
         """Test integration with proof trace recorder."""
-        from regionai.scenarios.proof_trace import ProofTraceRecorder
+        from regionai.reasoning.proof_trace import ProofTraceRecorder
         
         trace_recorder = Mock(spec=ProofTraceRecorder)
         theorem = Theorem(name="test", statement="P")

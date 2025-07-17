@@ -16,7 +16,7 @@ from unittest.mock import Mock
 from regionai.domains.language.symbolic_parser import SymbolicParser
 from regionai.domains.language.symbolic import RegionCandidate
 from regionai.domains.language.candidate_generator import CandidateGenerator
-from regionai.world_contexts.knowledge.graph import Concept
+from regionai.knowledge.graph import Concept
 
 
 class TestSymbolicParser:
@@ -57,6 +57,11 @@ class TestSymbolicParser:
             return mock_generate(phrase)
         
         generator.generate_candidates_with_context.side_effect = mock_generate_with_context
+        
+        # Add mock knowledge_graph attribute
+        mock_knowledge_graph = Mock()
+        mock_knowledge_graph.learn_mapping = Mock()
+        generator.knowledge_graph = mock_knowledge_graph
         
         return generator
     
@@ -333,8 +338,8 @@ class TestSymbolicParserIntegration:
     
     def test_with_real_candidate_generator(self):
         """Test parser with a real CandidateGenerator (simplified)."""
-        from regionai.world_contexts.knowledge.graph import WorldKnowledgeGraph
-        from regionai.world_contexts.knowledge.hub import KnowledgeHub
+        from regionai.knowledge.graph import WorldKnowledgeGraph
+        from regionai.knowledge.hub import KnowledgeHub
         
         # Create minimal knowledge graph
         graph = WorldKnowledgeGraph()

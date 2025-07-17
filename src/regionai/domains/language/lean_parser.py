@@ -43,7 +43,7 @@ class LeanParser:
         """Initialize the Lean parser."""
         # Regex patterns for parsing
         self.theorem_pattern = re.compile(
-            r'theorem\s+(\w+)\s*(?:\((.*?)\))?\s*:\s*(.+?)(?=\n(?:theorem|def|lemma|example|--|\s*$))',
+            r'theorem\s+(\w+)\s*((?:\([^)]+\)\s*)*)\s*:\s*(.+?)(?=\n(?:theorem|def|lemma|example|--)|$)',
             re.DOTALL | re.MULTILINE
         )
         self.param_pattern = re.compile(r'(\w+)\s*:\s*([^,]+)')
@@ -123,7 +123,7 @@ class LeanParser:
         Parse parameter/hypothesis definitions.
         
         Args:
-            params_str: The parameter string, e.g., "p : Prop, q : Prop"
+            params_str: The parameter string, e.g., "(p : Prop) (q : Prop)" or "p : Prop, q : Prop"
             
         Returns:
             List of Hypothesis objects
@@ -131,6 +131,33 @@ class LeanParser:
         hypotheses = []
         
         if not params_str.strip():
+            return hypotheses
+            
+        # Handle parenthetical parameters: (p : Prop) (q : Prop)
+        paren_pattern = re.compile(r'\(([^)]+)\)')
+        paren_matches = paren_pattern.findall(params_str)
+        
+        if paren_matches:
+            # Parse each parenthetical group
+            for param_content in paren_matches:
+                param_content = param_content.strip()
+                if ':' in param_content:
+                    colon_idx = param_content.rfind(':')
+                    names_part = param_content[:colon_idx].strip()
+                    type_part = param_content[colon_idx+1:].strip()
+                    
+                    # Split names if multiple (e.g., "p q : Prop")
+                    names = names_part.split()
+                    
+                    for name in names:
+                        if name:
+                            hyp = Hypothesis(name=name, type_expr=type_part)
+                            hypotheses.append(hyp)
+                else:
+                    # No type annotation, just a name
+                    hyp = Hypothesis(name=param_content, type_expr="Type")
+                    hypotheses.append(hyp)
+            
             return hypotheses
             
         # Handle simple case: multiple variables with same type
@@ -333,7 +360,11 @@ class LeanFileValidator:
         for i, line in enumerate(lines, 1):
             # Check for missing colons in theorem definitions
             if line.strip().startswith('theorem') and ':' not in line:
-                if i < len(lines) and ':' not in lines[i]:  # Check next line too
+                # Check if colon is missing (not on current line and not on next line)
+                next_line_has_colon = False
+                if i < len(lines):  # Check if there's a next line
+                    next_line_has_colon = ':' in lines[i]  # lines[i] is next line (0-based)
+                if not next_line_has_colon:
                     issues.append(f"Line {i}: Theorem definition missing colon")
                     
         return len(issues) == 0, issues

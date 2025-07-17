@@ -105,6 +105,12 @@ def to_plural(word: str) -> str:
         'foot': 'feet',
         'mouse': 'mice',
         'goose': 'geese',
+        'a': 'some',  # Article to quantifier
+        # Unchanged plurals
+        'sheep': 'sheep',
+        'deer': 'deer',
+        'fish': 'fish',
+        'series': 'series',
     }
     
     if word_lower in irregular_singulars:
