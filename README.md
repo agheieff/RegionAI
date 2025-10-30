@@ -3,10 +3,10 @@
 
 **A Novel AI Architecture for Understanding and Generating Software from First Principles**
 
-Copyright © 2025 Arkadiy Agyeyev. All rights reserved.  
+Copyright © 2025 Arkadiy Agyeyev.
 Contact: agheieff@pm.me
 
-*Note: While all rights are reserved, I am generally open to granting permissions for good-faith academic and research use. Please contact me to discuss your intended use case. As the system becomes more advanced, licensing terms may evolve.*
+*It's unlikely I'll return to this project, if you somehow find it useful in any way, feel free to do whatever you want with it. Do let me know please.*
 
 ---
 
