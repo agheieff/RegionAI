@@ -1,4 +1,5 @@
 # RegionAI: Computational Discovery Through Region-Based Intelligence
+# AKA: Claude's word- and code-salad after I gave it some ideas about geometric representations for LLM tokens and corresponding real-world phenomena
 
 **A Novel AI Architecture for Understanding and Generating Software from First Principles**
 
