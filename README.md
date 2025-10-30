@@ -787,14 +787,6 @@ For licensing inquiries, research collaborations, or general questions:
 - Email: agheieff@pm.me
 - Subject: RegionAI Inquiry
 
-I am generally open to granting permissions for:
-- Academic research
-- Educational use
-- Non-commercial exploration
-- Collaborative development
-
-As RegionAI evolves toward AGI, licensing terms may be updated to ensure beneficial use for humanity.
-
 ---
 
 *"The best way to understand intelligence is to build it from first principles."*
